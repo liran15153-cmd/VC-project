@@ -8,12 +8,9 @@
 const express = require('express');
 const { z } = require('zod');
 const validate = require('../middleware/validate');
-const { requireAuth } = require('../middleware/auth');
 const { modelSchema } = require('../schemas/apiSchemas');
-const { EVENT_TYPES, GENERATION, TOKEN_COSTS } = require('../config/constants');
+const { GENERATION } = require('../config/constants');
 const { generateJSON } = require('../services/openaiService');
-const tokenService = require('../services/tokenService');
-const analytics = require('../db/analytics');
 const {
   ENGINE_GAME_SYSTEM_PROMPT,
   buildEngineGenerationPrompt,
@@ -72,22 +69,9 @@ async function generateEngineGameWithRetries({ prompt, model }) {
   );
 }
 
-router.post('/generate', requireAuth, validate(engineGenerateSchema), async (req, res, next) => {
+router.post('/generate', validate(engineGenerateSchema), async (req, res, next) => {
   try {
-    tokenService.spend({
-      userId: req.user.id,
-      amount: TOKEN_COSTS.NEW_GAME,
-      actionType: 'create',
-      metadata: { source: 'engine-generate' }
-    });
-
     const result = await generateEngineGameWithRetries(req.body);
-    analytics.logEvent({
-      eventType: EVENT_TYPES.GENERATION_SUCCEEDED,
-      userId: req.user.id,
-      generationTimeMs: result.durationMs,
-      metadata: { source: 'engine-generate', model: result.model, attempts: result.attempts }
-    });
 
     res.json({
       gameDefinition: result.gameDefinition,
@@ -96,16 +80,10 @@ router.post('/generate', requireAuth, validate(engineGenerateSchema), async (req
         model: result.model,
         durationMs: result.durationMs,
         attempts: result.attempts,
-        tokens: tokenService.getBalance(req.user.id)
+        persistence: 'supabase_pending'
       }
     });
   } catch (err) {
-    analytics.logEvent({
-      eventType: EVENT_TYPES.GENERATION_FAILED,
-      userId: req.user?.id,
-      errorMessage: err.message,
-      metadata: { source: 'engine-generate' }
-    });
     next(toUserFacingGenerationError(err));
   }
 });

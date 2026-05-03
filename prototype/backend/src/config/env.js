@@ -36,14 +36,6 @@ const PLACEHOLDER_KEYS = new Set([
   'your-openrouter-api-key'
 ]);
 
-const PLACEHOLDER_AUTH_SECRETS = new Set([
-  '',
-  'replace-with-a-random-64-character-secret',
-  'development-only-change-this-secret-before-production',
-  'your-auth-token-secret',
-  'replace-with-your-auth-token-secret'
-]);
-
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
@@ -60,22 +52,12 @@ const envSchema = z.object({
 
   OPENAI_API_KEY: z.string().min(10, 'OPENAI_API_KEY is required and must be valid').optional(),
   OPENAI_DEFAULT_MODEL: z.string().min(1).default('gpt-5'),
-  GENERIC_OPENAI_ENABLED: z.coerce.boolean().default(false),
 
   OPENROUTER_API_KEY: z.string().min(10, 'OPENROUTER_API_KEY is required and must be valid').optional(),
   OPENROUTER_DEFAULT_MODEL: z.string().min(1).default('openai/gpt-5-mini'),
   OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
   OPENROUTER_APP_URL: z.string().url().default('http://localhost:5174'),
   OPENROUTER_APP_TITLE: z.string().min(1).default('Gaming Vibe Coding'),
-
-  DATABASE_PATH: z.string().default('./data/gaming-vibe.db'),
-
-  AUTH_TOKEN_SECRET: z.string().min(32, 'AUTH_TOKEN_SECRET must be at least 32 chars').optional(),
-  AUTH_TOKEN_TTL_SECONDS: z.coerce.number().int().min(300).default(60 * 60 * 24 * 7),
-  DEFAULT_FREE_TOKENS: z.coerce.number().int().min(0).default(25),
-  TOKEN_ENFORCEMENT_ENABLED: z.coerce.boolean().optional(),
-  ADMIN_EMAILS: z.string().default(''),
-  AUTO_ADMIN_FIRST_USER: z.coerce.boolean().default(true),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
@@ -107,24 +89,9 @@ if (parsed.NODE_ENV === 'production' && parsed.CORS_ORIGINS === '*') {
   process.exit(1);
 }
 
-if (
-  parsed.NODE_ENV === 'production' &&
-  (!parsed.AUTH_TOKEN_SECRET || PLACEHOLDER_AUTH_SECRETS.has(parsed.AUTH_TOKEN_SECRET.trim()))
-) {
-  console.error('\nAUTH_TOKEN_SECRET is required in production and must be at least 32 chars\n');
-  process.exit(1);
-}
-
 const corsOrigins = parsed.CORS_ORIGINS === '*'
   ? '*'
   : parsed.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
-
-const adminEmails = parsed.ADMIN_EMAILS
-  .split(',')
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean);
-
-const devAuthSecret = 'development-only-change-this-secret-before-production';
 
 function normalizeApiKey(value) {
   const trimmed = (value || '').trim();
@@ -164,7 +131,6 @@ module.exports = {
     defaultModel: selectedDefaultModel,
     supportedModels: selectedSupportedModels,
     enabled: !!selectedApiKey,
-    genericEndpointEnabled: parsed.GENERIC_OPENAI_ENABLED,
     fallbackEnabled: parsed.AI_FALLBACK_ENABLED,
     maxJsonOutputTokens: parsed.AI_MAX_JSON_OUTPUT_TOKENS,
     maxTextOutputTokens: parsed.AI_MAX_TEXT_OUTPUT_TOKENS,
@@ -179,7 +145,6 @@ module.exports = {
     defaultModel: parsed.OPENAI_DEFAULT_MODEL,
     supportedModels: OPENAI_MODELS,
     enabled: !!openaiApiKey,
-    genericEndpointEnabled: parsed.GENERIC_OPENAI_ENABLED,
     fallbackEnabled: parsed.AI_FALLBACK_ENABLED
   },
   openrouter: {
@@ -190,23 +155,6 @@ module.exports = {
     enabled: !!openrouterApiKey,
     appUrl: parsed.OPENROUTER_APP_URL,
     appTitle: parsed.OPENROUTER_APP_TITLE
-  },
-  auth: {
-    tokenSecret: parsed.AUTH_TOKEN_SECRET || devAuthSecret,
-    tokenTtlSeconds: parsed.AUTH_TOKEN_TTL_SECONDS,
-    adminEmails,
-    autoAdminFirstUser: parsed.NODE_ENV === 'production' ? false : parsed.AUTO_ADMIN_FIRST_USER,
-    defaultFreeTokens: parsed.DEFAULT_FREE_TOKENS,
-    tokenEnforcementEnabled: parsed.NODE_ENV === 'production'
-      ? true
-      : (parsed.TOKEN_ENFORCEMENT_ENABLED ?? false)
-  },
-  database: {
-    path: path.isAbsolute(parsed.DATABASE_PATH)
-      ? parsed.DATABASE_PATH
-      : parsed.DATABASE_PATH === ':memory:'
-        ? ':memory:'
-        : path.resolve(__dirname, '../../', parsed.DATABASE_PATH)
   },
   logging: { level: parsed.LOG_LEVEL },
   rateLimits: {

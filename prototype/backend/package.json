@@ -12,8 +12,6 @@
     "test:health": "curl -s http://localhost:3000/api/health"
   },
   "dependencies": {
-    "archiver": "^7.0.1",
-    "better-sqlite3": "^12.9.0",
     "compression": "^1.7.5",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

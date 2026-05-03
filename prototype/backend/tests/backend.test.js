@@ -1,22 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
 
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_PATH = path.join(os.tmpdir(), `gvc-backend-${Date.now()}-${Math.random().toString(16).slice(2)}.db`);
-process.env.AUTH_TOKEN_SECRET = 'test-secret-that-is-long-enough-for-auth';
-process.env.DEFAULT_FREE_TOKENS = '25';
-process.env.TOKEN_ENFORCEMENT_ENABLED = 'true';
-process.env.AUTO_ADMIN_FIRST_USER = 'true';
-process.env.ADMIN_EMAILS = 'admin@example.com';
 process.env.LOG_LEVEL = 'fatal';
 process.env.AI_PROVIDER = 'openrouter';
 process.env.OPENAI_API_KEY = 'replace-with-your-openai-api-key';
 process.env.OPENROUTER_API_KEY = 'replace-with-your-openrouter-api-key';
 
-const db = require('../src/db/connection');
 const { createApp } = require('../src/app');
 const { validateEngineGameDefinitionSafe } = require('../src/schemas/engineGameDefinitionSchema');
 
@@ -24,7 +14,6 @@ let server;
 let baseUrl;
 
 test.before(async () => {
-  db.init();
   const app = createApp();
   server = await new Promise((resolve) => {
     const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
@@ -35,14 +24,6 @@ test.before(async () => {
 
 test.after(async () => {
   await new Promise((resolve) => server.close(resolve));
-  db.close();
-  for (const suffix of ['', '-shm', '-wal']) {
-    try {
-      fs.rmSync(`${process.env.DATABASE_PATH}${suffix}`, { force: true });
-    } catch {
-      // ignore cleanup errors
-    }
-  }
 });
 
 async function request(method, pathname, { body, token } = {}) {
@@ -183,19 +164,17 @@ test('GAME_ENGINE GameDefinition validator accepts runtime schema and rejects ol
   assert.equal(oldFormat.ok, false);
 });
 
-test('engine generation endpoint requires auth and validates input before OpenAI', async () => {
-  const unauthenticated = await request('POST', '/api/engine/generate', {
-    body: { prompt: '' }
-  });
-  assert.equal(unauthenticated.res.status, 401);
+test('health endpoint reports Supabase-owned services as pending', async () => {
+  const health = await request('GET', '/api/health');
+  assert.equal(health.res.status, 200);
+  assert.equal(health.data.status, 'ok');
+  assert.equal(health.data.services.database, 'supabase_pending');
+  assert.equal(health.data.services.auth, 'supabase_pending');
+  assert.equal(health.data.services.storage, 'supabase_pending');
+});
 
-  const user = await request('POST', '/api/auth/register', {
-    body: { email: 'engine-validator@example.com', password: 'password123' }
-  });
-  assert.equal(user.res.status, 201);
-
+test('engine generation endpoint validates input before OpenAI', async () => {
   const generated = await request('POST', '/api/engine/generate', {
-    token: user.data.token,
     body: { prompt: '' }
   });
 
@@ -204,13 +183,7 @@ test('engine generation endpoint requires auth and validates input before OpenAI
 });
 
 test('engine generation endpoint reports a clear error when AI provider key is missing', async () => {
-  const user = await request('POST', '/api/auth/register', {
-    body: { email: 'engine-provider@example.com', password: 'password123' }
-  });
-  assert.equal(user.res.status, 201);
-
   const generated = await request('POST', '/api/engine/generate', {
-    token: user.data.token,
     body: { prompt: 'Create a simple platformer with coins and a win condition' }
   });
 
@@ -219,75 +192,35 @@ test('engine generation endpoint reports a clear error when AI provider key is m
   assert.match(generated.data.error, /OpenRouter|OPENROUTER_API_KEY/i);
 });
 
-test('auth, ownership, tokens, and admin stats', async () => {
-  const adminReg = await request('POST', '/api/auth/register', {
-    body: { email: 'admin@example.com', password: 'password123', displayName: 'Admin' }
+test('legacy local backend ownership endpoints are removed for Supabase', async () => {
+  const auth = await request('POST', '/api/auth/register', {
+    body: { email: 'user@example.com', password: 'password123' }
   });
-  assert.equal(adminReg.res.status, 201);
-  assert.equal(adminReg.data.user.role, 'admin');
-  assert.equal(adminReg.data.tokens.tokensRemaining, 25);
-  assert.ok(adminReg.data.token);
+  assert.equal(auth.res.status, 404);
 
-  const userReg = await request('POST', '/api/auth/register', {
-    body: { email: 'user@example.com', password: 'password123', displayName: 'User' }
-  });
-  assert.equal(userReg.res.status, 201);
-  assert.equal(userReg.data.user.role, 'user');
+  const games = await request('GET', '/api/games');
+  assert.equal(games.res.status, 404);
 
-  const strangerReg = await request('POST', '/api/auth/register', {
-    body: { email: 'stranger@example.com', password: 'password123', displayName: 'Stranger' }
-  });
-  assert.equal(strangerReg.res.status, 201);
+  const tokens = await request('GET', '/api/user/tokens');
+  assert.equal(tokens.res.status, 404);
 
-  const unauthList = await request('GET', '/api/games');
-  assert.equal(unauthList.res.status, 401);
+  const stats = await request('GET', '/api/stats');
+  assert.equal(stats.res.status, 404);
+});
 
-  const created = await request('POST', '/api/games', {
-    token: userReg.data.token,
+test('generate-game remains stateless and can fall back locally', async () => {
+  const generated = await request('POST', '/api/generate-game', {
     body: {
-      title: 'Test Runner',
-      gameJSON: sampleGameJSON(),
-      prompt: 'make a test platformer'
+      prompt: 'Create a simple platformer with coins',
+      answers: {},
+      gameType: 'platformer',
+      dimension: '2D'
     }
   });
-  assert.equal(created.res.status, 201);
-  assert.ok(created.data.id);
-  assert.ok(created.data.htmlString.includes('Phaser.Game'));
-  assert.ok(Array.isArray(created.data.assetManifest));
-  assert.ok(created.data.assetManifest.length >= 2);
-  assert.equal(created.data.userId, userReg.data.user.id);
 
-  const ownerRead = await request('GET', `/api/games/${created.data.id}`, { token: userReg.data.token });
-  assert.equal(ownerRead.res.status, 200);
-  assert.equal(ownerRead.data.id, created.data.id);
-
-  const assets = await request('GET', `/api/games/${created.data.id}/assets`, { token: userReg.data.token });
-  assert.equal(assets.res.status, 200);
-  assert.equal(assets.data.gameId, created.data.id);
-  assert.ok(assets.data.assets.some((asset) => asset.key === 'player'));
-
-  const download = await fetch(`${baseUrl}/api/games/${created.data.id}/download`, {
-    headers: { Authorization: `Bearer ${userReg.data.token}` }
-  });
-  assert.equal(download.status, 200);
-  assert.equal(download.headers.get('content-type'), 'application/zip');
-  assert.ok((await download.arrayBuffer()).byteLength > 100);
-
-  const strangerRead = await request('GET', `/api/games/${created.data.id}`, { token: strangerReg.data.token });
-  assert.equal(strangerRead.res.status, 403);
-
-  const userStats = await request('GET', '/api/stats', { token: userReg.data.token });
-  assert.equal(userStats.res.status, 403);
-
-  const adminStats = await request('GET', '/api/stats', { token: adminReg.data.token });
-  assert.equal(adminStats.res.status, 200);
-  assert.equal(adminStats.data.users.total, 5);
-  assert.equal(adminStats.data.games.total, 1);
-
-  const grant = await request('POST', '/api/user/tokens/grant', {
-    token: adminReg.data.token,
-    body: { userId: userReg.data.user.id, amount: 10 }
-  });
-  assert.equal(grant.res.status, 200);
-  assert.equal(grant.data.tokensRemaining, 35);
+  assert.equal(generated.res.status, 200);
+  assert.equal(generated.data.gameId, null);
+  assert.equal(generated.data.meta.persistence, 'supabase_pending');
+  assert.ok(generated.data.htmlString.includes('Phaser.Game'));
+  assert.ok(Array.isArray(generated.data.assetManifest));
 });

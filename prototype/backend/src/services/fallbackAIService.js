@@ -20,7 +20,9 @@ function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + mi
 
 function shouldUseFallback(err) {
   const message = String(err?.message || err || '').toLowerCase();
+  const code = String(err?.code || '').toLowerCase();
   return (
+    code === 'service_unavailable' ||
     message.includes('429') ||
     message.includes('quota') ||
     message.includes('too many requests') ||

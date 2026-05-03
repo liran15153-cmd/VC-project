@@ -4,7 +4,6 @@
 
 const express = require('express');
 const validate = require('../middleware/validate');
-const { requireAuth, ensureSelfOrAdmin } = require('../middleware/auth');
 const { generateGameSchema, editGameSchema } = require('../schemas/apiSchemas');
 const { validateGameJSONSafe } = require('../schemas/gameSchemas');
 const { generateJSON } = require('../services/openaiService');
@@ -14,12 +13,9 @@ const { buildGameHTML } = require('../services/templateBuilder');
 const { buildAssetManifest } = require('../services/assetService');
 const fallbackAI = require('../services/fallbackAIService');
 const config = require('../config/env');
-const tokenService = require('../services/tokenService');
-const games = require('../db/games');
-const analytics = require('../db/analytics');
 const logger = require('../utils/logger');
-const { EVENT_TYPES, TOKEN_COSTS, GENERATION } = require('../config/constants');
-const { ExternalAPIError, NotFoundError } = require('../utils/errors');
+const { GENERATION } = require('../config/constants');
+const { ExternalAPIError } = require('../utils/errors');
 
 const router = express.Router();
 
@@ -60,12 +56,6 @@ async function generateWithRetries({ systemPrompt, userPrompt, model, expectedDi
 
       lastError = check.reason;
       logger.warn({ attempt, reason: check.reason }, 'Validation failed, retrying');
-      analytics.logEvent({
-        eventType: EVENT_TYPES.VALIDATION_FAILED,
-        errorMessage: check.reason,
-        metadata: { attempt, expectedDimension }
-      });
-
       correctivePrompt = `${userPrompt}\n\nPREVIOUS ATTEMPT FAILED VALIDATION: ${check.reason}\nFix the issue and return valid JSON only.`;
     } catch (err) {
       lastError = err.message;
@@ -142,25 +132,11 @@ async function editGameOrFallback({ sourceGameJSON, editPrompt, userPrompt, mode
   }
 }
 
-router.post('/generate-game', requireAuth, validate(generateGameSchema), async (req, res, next) => {
-  const { prompt, answers, gameType, dimension, model, saveToDb } = req.body;
-  const userId = req.user.id;
+router.post('/generate-game', validate(generateGameSchema), async (req, res, next) => {
+  const { prompt, answers, gameType, dimension, model } = req.body;
   const start = Date.now();
 
   try {
-    tokenService.spend({
-      userId,
-      amount: TOKEN_COSTS.NEW_GAME,
-      actionType: 'create',
-      metadata: { source: 'generate-game', gameType, dimension }
-    });
-
-    analytics.logEvent({
-      eventType: EVENT_TYPES.GENERATION_STARTED,
-      userId,
-      metadata: { gameType, dimension, model }
-    });
-
     const userPrompt = buildGenerationPrompt({ prompt, answers, gameType, dimension });
     const result = await generateGameOrFallback({
       prompt,
@@ -175,42 +151,8 @@ router.post('/generate-game', requireAuth, validate(generateGameSchema), async (
     const assetManifest = buildAssetManifest(result.gameJSON);
     const totalDurationMs = Date.now() - start;
 
-    let savedGame = null;
-    if (saveToDb) {
-      savedGame = games.createGame({
-        title: result.gameJSON.metadata.gameTitle,
-        description: result.gameJSON.metadata.description,
-        genre: result.gameJSON.metadata.genre,
-        dimension: result.gameJSON.metadata.dimension,
-        difficulty: result.gameJSON.metadata.difficulty,
-        gameJSON: result.gameJSON,
-        htmlString,
-        assetManifest,
-        prompt,
-        mcqAnswers: answers,
-        userId
-      });
-    }
-
-    analytics.logPrompt({
-      gameId: savedGame?.id,
-      userId,
-      prompt,
-      promptType: 'generate',
-      mcqAnswers: answers,
-      modelUsed: result.model,
-      tokensUsed: TOKEN_COSTS.NEW_GAME
-    });
-    analytics.logEvent({
-      eventType: EVENT_TYPES.GENERATION_SUCCEEDED,
-      gameId: savedGame?.id,
-      userId,
-      generationTimeMs: totalDurationMs,
-      metadata: { gameType, dimension, model: result.model, attempts: result.attempts, fallback: result.fallback }
-    });
-
     res.json({
-      gameId: savedGame?.id || null,
+      gameId: null,
       gameJSON: result.gameJSON,
       htmlString,
       assetManifest,
@@ -221,48 +163,20 @@ router.post('/generate-game', requireAuth, validate(generateGameSchema), async (
         attempts: result.attempts,
         fallback: result.fallback,
         fallbackReason: result.fallbackReason,
-        savedGameId: savedGame?.id,
-        tokens: tokenService.getBalance(userId)
+        persistence: 'supabase_pending'
       }
     });
   } catch (err) {
-    analytics.logEvent({
-      eventType: EVENT_TYPES.GENERATION_FAILED,
-      userId,
-      generationTimeMs: Date.now() - start,
-      errorMessage: err.message,
-      metadata: { gameType, dimension }
-    });
     next(err);
   }
 });
 
-router.post('/edit-game', requireAuth, validate(editGameSchema), async (req, res, next) => {
-  const { gameId, editPrompt, model, saveToDb } = req.body;
-  const userId = req.user.id;
+router.post('/edit-game', validate(editGameSchema), async (req, res, next) => {
+  const { gameJSON: sourceGameJSON, editPrompt, model } = req.body;
   const start = Date.now();
 
   try {
-    let sourceGameJSON = req.body.gameJSON;
-    let existing = null;
-
-    if (gameId) {
-      existing = games.getGame(gameId);
-      if (!existing) throw new NotFoundError('Game');
-      ensureSelfOrAdmin(req, existing.userId);
-      sourceGameJSON = existing.gameJSON;
-    }
-
     const dimension = sourceGameJSON.metadata.dimension;
-
-    tokenService.spend({
-      userId,
-      gameId: gameId || null,
-      amount: TOKEN_COSTS.EDIT_GAME,
-      actionType: 'edit',
-      metadata: { source: 'edit-game', dimension }
-    });
-
     const userPrompt = buildEditPrompt({ gameJSON: sourceGameJSON, editPrompt });
     const result = await editGameOrFallback({
       sourceGameJSON,
@@ -276,38 +190,8 @@ router.post('/edit-game', requireAuth, validate(editGameSchema), async (req, res
     const assetManifest = buildAssetManifest(result.gameJSON);
     const totalDurationMs = Date.now() - start;
 
-    let updatedGame = null;
-    if (saveToDb && gameId) {
-      updatedGame = games.updateGame(gameId, {
-        title: result.gameJSON.metadata.gameTitle,
-        description: result.gameJSON.metadata.description,
-        genre: result.gameJSON.metadata.genre,
-        dimension: result.gameJSON.metadata.dimension,
-        gameJSON: result.gameJSON,
-        htmlString,
-        assetManifest,
-        difficulty: result.gameJSON.metadata.difficulty
-      });
-    }
-
-    analytics.logPrompt({
-      gameId,
-      userId,
-      prompt: editPrompt,
-      promptType: 'edit',
-      modelUsed: result.model,
-      tokensUsed: TOKEN_COSTS.EDIT_GAME
-    });
-    analytics.logEvent({
-      eventType: EVENT_TYPES.GAME_EDITED,
-      gameId,
-      userId,
-      generationTimeMs: totalDurationMs,
-      metadata: { dimension, model: result.model, attempts: result.attempts, fallback: result.fallback }
-    });
-
     res.json({
-      gameId: updatedGame?.id || gameId || null,
+      gameId: null,
       gameJSON: result.gameJSON,
       htmlString,
       assetManifest,
@@ -318,19 +202,10 @@ router.post('/edit-game', requireAuth, validate(editGameSchema), async (req, res
         attempts: result.attempts,
         fallback: result.fallback,
         fallbackReason: result.fallbackReason,
-        savedGameId: updatedGame?.id,
-        tokens: tokenService.getBalance(userId)
+        persistence: 'supabase_pending'
       }
     });
   } catch (err) {
-    analytics.logEvent({
-      eventType: EVENT_TYPES.GENERATION_FAILED,
-      userId,
-      gameId,
-      generationTimeMs: Date.now() - start,
-      errorMessage: err.message,
-      metadata: { source: 'edit' }
-    });
     next(err);
   }
 });
