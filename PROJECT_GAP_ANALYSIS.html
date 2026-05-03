@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gaming Vibe Coding — Project Gap Analysis</title>
+<style>
+  :root {
+    --orange-50: #fff5ec;
+    --orange-100: #ffe1cc;
+    --orange-300: #ffb073;
+    --orange-500: #ff7a18;
+    --orange-600: #ed6a05;
+    --orange-700: #c95a04;
+    --gray-25: #fdfdfd;
+    --gray-50: #f7f8fa;
+    --gray-100: #eef0f4;
+    --gray-200: #e2e5ea;
+    --gray-300: #cdd2da;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --green-500: #16a34a;
+    --green-50: #dcfce7;
+    --red-500: #dc2626;
+    --red-50: #fee2e2;
+    --amber-500: #d97706;
+    --amber-50: #fef3c7;
+    --blue-500: #2563eb;
+    --blue-50: #dbeafe;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--gray-50);
+    color: var(--gray-900);
+    line-height: 1.55;
+  }
+  .hero {
+    background: linear-gradient(135deg, #ff944d 0%, #ff6a00 60%, #d65000 100%);
+    color: #fff;
+    padding: 60px 32px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 90% 10%, rgba(255,255,255,0.18), transparent 40%),
+      radial-gradient(circle at 10% 90%, rgba(255,255,255,0.10), transparent 40%);
+  }
+  .hero-inner { position: relative; max-width: 1100px; margin: 0 auto; }
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-size: 12px;
+    opacity: 0.9;
+    font-weight: 700;
+  }
+  h1 { font-size: 38px; margin: 6px 0 8px; line-height: 1.15; }
+  .hero-sub { font-size: 17px; opacity: 0.95; max-width: 760px; }
+  .hero-meta {
+    margin-top: 22px;
+    display: flex; flex-wrap: wrap; gap: 10px;
+    font-size: 13px;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.28);
+    padding: 5px 12px; border-radius: 999px;
+    backdrop-filter: blur(6px);
+    font-weight: 600;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: -56px auto 80px;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 800px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 18px 18px 16px;
+    border: 1px solid var(--gray-200);
+    box-shadow: 0 4px 12px rgba(15,23,42,0.06);
+  }
+  .stat-card .lbl {
+    font-size: 11px; color: var(--gray-500);
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat-card .val { font-size: 28px; font-weight: 800; margin-top: 4px; }
+  .stat-card .sub { font-size: 12px; color: var(--gray-500); }
+  .stat-card.green .val { color: var(--green-500); }
+  .stat-card.amber .val { color: var(--amber-500); }
+  .stat-card.red .val { color: var(--red-500); }
+  .stat-card.orange .val { color: var(--orange-600); }
+
+  .toc {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 14px;
+    padding: 18px 22px;
+    margin-bottom: 36px;
+  }
+  .toc h3 { margin: 0 0 8px; font-size: 14px; color: var(--gray-700); }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 24px; }
+  @media (max-width: 700px) { .toc ol { columns: 1; } }
+  .toc a { color: var(--orange-700); text-decoration: none; font-weight: 500; }
+  .toc a:hover { text-decoration: underline; }
+
+  section.block {
+    background: #fff;
+    border: 1px solid var(--gray-200);
+    border-radius: 14px;
+    padding: 26px 28px;
+    margin-bottom: 22px;
+    box-shadow: 0 2px 6px rgba(15,23,42,0.04);
+  }
+  section.block h2 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  section.block h2 .ix {
+    width: 30px; height: 30px;
+    background: var(--orange-50);
+    color: var(--orange-700);
+    border-radius: 8px;
+    display: grid; place-items: center;
+    font-size: 14px;
+    font-weight: 800;
+  }
+  section.block .lead {
+    color: var(--gray-500);
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  h3.sub {
+    font-size: 15px;
+    margin: 22px 0 10px;
+    color: var(--gray-700);
+    border-bottom: 1px solid var(--gray-100);
+    padding-bottom: 6px;
+  }
+
+  ul.gap, ol.gap { padding-left: 0; list-style: none; margin: 0 0 8px; }
+  ul.gap li, ol.gap li {
+    border-left: 3px solid var(--gray-200);
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: var(--gray-25);
+    border-radius: 0 8px 8px 0;
+  }
+  ul.gap li.crit, ol.gap li.crit { border-left-color: var(--red-500); background: #fff5f5; }
+  ul.gap li.high, ol.gap li.high { border-left-color: var(--amber-500); background: #fffaf0; }
+  ul.gap li.med,  ol.gap li.med  { border-left-color: var(--blue-500); background: #f5f9ff; }
+  ul.gap li.low,  ol.gap li.low  { border-left-color: var(--gray-300); }
+  ul.gap li.done, ol.gap li.done { border-left-color: var(--green-500); background: #f4fcf6; }
+
+  .row-title { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .tag {
+    font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase;
+    font-weight: 800; padding: 2px 8px; border-radius: 999px;
+    background: var(--gray-100); color: var(--gray-700);
+  }
+  .tag.crit { background: var(--red-50); color: #991b1b; }
+  .tag.high { background: var(--amber-50); color: #92400e; }
+  .tag.med  { background: var(--blue-50);  color: #1e40af; }
+  .tag.low  { background: var(--gray-100); color: var(--gray-700); }
+  .tag.done { background: var(--green-50); color: #166534; }
+  .row-body { color: var(--gray-700); margin-top: 4px; font-size: 14px; }
+  .row-fix { color: var(--gray-700); font-size: 13px; margin-top: 6px; }
+  .row-fix b { color: var(--gray-900); }
+
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; background: var(--gray-100); padding: 1px 6px; border-radius: 4px; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 14px 16px; border-radius: 10px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  table.matrix {
+    width: 100%; border-collapse: collapse; font-size: 13.5px;
+    margin-top: 6px;
+  }
+  table.matrix th, table.matrix td {
+    text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--gray-100);
+    vertical-align: top;
+  }
+  table.matrix th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--gray-500); }
+  table.matrix td.status { white-space: nowrap; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    font-size: 12px;
+    margin: 6px 0 18px;
+    color: var(--gray-700);
+  }
+  .legend .dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    margin-right: 6px; vertical-align: middle;
+  }
+
+  .roadmap { display: flex; flex-direction: column; gap: 10px; }
+  .phase {
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 14px 16px;
+    background: #fff;
+  }
+  .phase h4 {
+    margin: 0 0 4px; font-size: 15px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .phase h4 .num {
+    width: 26px; height: 26px;
+    background: linear-gradient(135deg, var(--orange-500), var(--orange-700));
+    color: #fff; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 12px; font-weight: 800;
+  }
+  .phase ul { margin: 8px 0 0; padding-left: 20px; }
+  .phase ul li { margin-bottom: 4px; font-size: 13.5px; }
+  .phase .when { font-size: 12px; color: var(--gray-500); }
+
+  .ideas-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 800px) { .ideas-grid { grid-template-columns: 1fr; } }
+  .idea {
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 14px 16px;
+    background: var(--gray-25);
+  }
+  .idea h4 { margin: 0 0 6px; font-size: 14px; color: var(--orange-700); }
+  .idea p { margin: 0; font-size: 13px; color: var(--gray-700); }
+
+  footer {
+    text-align: center;
+    padding: 28px 16px 60px;
+    color: var(--gray-500);
+    font-size: 12px;
+  }
+
+  details.note {
+    background: var(--orange-50);
+    border: 1px solid var(--orange-100);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin: 10px 0;
+  }
+  details.note summary { cursor: pointer; font-weight: 600; color: var(--orange-700); }
+  details.note p { margin: 8px 0 0; font-size: 13px; }
+
+  @media print {
+    .hero { color: #000; background: #fff; border-bottom: 2px solid #000; }
+    section.block { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow">Gaming Vibe Coding · CTO Audit</div>
+    <h1>Project Gap Analysis</h1>
+    <p class="hero-sub">A complete, end-to-end review of what exists today, what is missing, and what to build next — across the backend, the GAME_ENGINE runtime, the new production frontend, and the platform as a whole.</p>
+    <div class="hero-meta">
+      <span class="pill">Generated 2026-05-02</span>
+      <span class="pill">Scope: monorepo (root + GAME_ENGINE + prototype/backend + frontend)</span>
+      <span class="pill">Stage: MVP, pre-production</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ============== EXECUTIVE SUMMARY ============== -->
+  <div class="summary-grid">
+    <div class="stat-card green">
+      <div class="lbl">Already in place</div>
+      <div class="val">~55%</div>
+      <div class="sub">Backend, engine core, frontend skeleton</div>
+    </div>
+    <div class="stat-card amber">
+      <div class="lbl">In progress / partial</div>
+      <div class="val">~20%</div>
+      <div class="sub">Engine ↔ frontend wiring, asset generation</div>
+    </div>
+    <div class="stat-card red">
+      <div class="lbl">Critical gaps</div>
+      <div class="val">10</div>
+      <div class="sub">Blockers for production launch</div>
+    </div>
+    <div class="stat-card orange">
+      <div class="lbl">Recommended new systems</div>
+      <div class="val">14</div>
+      <div class="sub">Suggested in this report</div>
+    </div>
+  </div>
+
+  <div class="toc">
+    <h3>Contents</h3>
+    <ol>
+      <li><a href="#snapshot">Project snapshot</a></li>
+      <li><a href="#stack-vs-spec">Stack vs. spec — what diverged</a></li>
+      <li><a href="#backend-gaps">Backend gaps</a></li>
+      <li><a href="#frontend-gaps">Frontend gaps (the new app)</a></li>
+      <li><a href="#engine-gaps">GAME_ENGINE gaps</a></li>
+      <li><a href="#cross-cutting">Cross-cutting concerns</a></li>
+      <li><a href="#security">Security &amp; privacy</a></li>
+      <li><a href="#observability">Observability &amp; ops</a></li>
+      <li><a href="#payments">Monetization &amp; payments</a></li>
+      <li><a href="#assets">Asset generation pipeline</a></li>
+      <li><a href="#testing">Testing &amp; quality</a></li>
+      <li><a href="#docs">Documentation drift</a></li>
+      <li><a href="#new-systems">Recommended new systems</a></li>
+      <li><a href="#roadmap">Suggested roadmap</a></li>
+    </ol>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--red-500)"></span>critical — blocks launch</span>
+    <span><span class="dot" style="background:var(--amber-500)"></span>high — important before public release</span>
+    <span><span class="dot" style="background:var(--blue-500)"></span>medium — quality / scale</span>
+    <span><span class="dot" style="background:var(--gray-300)"></span>low — nice-to-have</span>
+    <span><span class="dot" style="background:var(--green-500)"></span>done — already shipped</span>
+  </div>
+
+  <!-- ============== 1. SNAPSHOT ============== -->
+  <section class="block" id="snapshot">
+    <h2><span class="ix">1</span> Project snapshot</h2>
+    <p class="lead">What I observed by reading the actual code under <code>prototype/backend</code>, <code>GAME_ENGINE</code>, and <code>frontend/</code>.</p>
+
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>Area</th>
+          <th>Status</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Backend API</b><br/><code>prototype/backend</code></td>
+          <td class="status"><span class="tag done">Solid base</span></td>
+          <td>Express + Zod, helmet, CORS, rate limiting, pino logging, JWT auth, SQLite via better-sqlite3, OpenAI service, fallback AI, MCQ, generate-game, edit-game, engine generation, games CRUD, ZIP download, analytics, stats, backend tests file.</td>
+        </tr>
+        <tr>
+          <td><b>GAME_ENGINE</b><br/><code>GAME_ENGINE/</code></td>
+          <td class="status"><span class="tag done">Working core</span></td>
+          <td>ECS-style runtime: Engine, GameRuntime, Three.js + Phaser + Rapier renderers, Behavior/Tween/Spawner/UI/Audio systems, Zod GameDefinition schema, playground example.</td>
+        </tr>
+        <tr>
+          <td><b>Frontend (new)</b><br/><code>frontend/</code></td>
+          <td class="status"><span class="tag done">Built today</span></td>
+          <td>Vite + React 18 + TS + React Router. Auth, dashboard, game builder (prompt → MCQ → generate → preview → edit), games list/detail/edit/download/delete, admin stats, health badge, token badge, orange/white SaaS theme, responsive.</td>
+        </tr>
+        <tr>
+          <td><b>Old prototype frontend</b><br/><code>prototype/frontend-test</code></td>
+          <td class="status"><span class="tag low">Legacy</span></td>
+          <td>RTL "Backend Tester" page. Should be deleted or moved to <code>tools/</code> after the new frontend is verified end-to-end.</td>
+        </tr>
+        <tr>
+          <td><b>Asset generation</b><br/><code>tools/game-dev-pack</code></td>
+          <td class="status"><span class="tag high">Unverified</span></td>
+          <td>Two folders <code>fal-unverified</code> and <code>retro-unverified</code> exist but are not integrated into the generation pipeline. AI-generated games still rely on placeholder colors / shapes only.</td>
+        </tr>
+        <tr>
+          <td><b>Database</b></td>
+          <td class="status"><span class="tag high">SQLite, not Postgres</span></td>
+          <td>The actual storage is <code>better-sqlite3</code> (file <code>data/gaming-vibe.db</code>). Architecture docs still claim PostgreSQL + JSONB.</td>
+        </tr>
+        <tr>
+          <td><b>Payments / billing</b></td>
+          <td class="status"><span class="tag crit">Missing</span></td>
+          <td>Token system exists but there is no Stripe / PayPal integration, no plans, no checkout, no webhook, no invoice. Tokens cannot actually be purchased.</td>
+        </tr>
+        <tr>
+          <td><b>Deployment</b></td>
+          <td class="status"><span class="tag crit">Missing</span></td>
+          <td>No Dockerfile, no CI, no deploy script, no environment-tier configuration, no healthcheck composition.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============== 2. STACK VS SPEC ============== -->
+  <section class="block" id="stack-vs-spec">
+    <h2><span class="ix">2</span> Stack vs. spec — what diverged</h2>
+    <p class="lead">Several architecture documents are now out of date. These divergences are real and need to be reconciled in writing before they cause confusion.</p>
+
+    <table class="matrix">
+      <thead>
+        <tr><th>Area</th><th>Doc says</th><th>Reality</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>AI provider</td><td>OpenAI <b>or Gemini</b> (older drafts)</td><td>OpenAI only via backend</td><td>Strip every Gemini reference from <code>README.md</code>, <code>ARCHITECTURE.md</code>, <code>Claude.md</code>, <code>AGENTS.md</code>, prototype docs.</td></tr>
+        <tr><td>Database</td><td>PostgreSQL + JSONB</td><td>SQLite (better-sqlite3)</td><td>Update docs OR migrate to Postgres before scaling. SQLite is fine for MVP but does not match the multi-instance "cloud architecture" wording.</td></tr>
+        <tr><td>Frontend framework</td><td>"TBD: React/Vue/etc."</td><td>React 18 + TS + Vite (delivered)</td><td>Lock this in <code>ARCHITECTURE.md</code> &amp; <code>Claude.md</code>.</td></tr>
+        <tr><td>Tailwind</td><td>"frontend uses Tailwind"</td><td>Hand-written CSS variables</td><td>Either keep current CSS (works fine, smaller bundle) or migrate to Tailwind. Just be honest about it.</td></tr>
+        <tr><td>Generation output</td><td>One JSON shape</td><td>Two shapes: legacy <code>gameJSON</code> + new engine <code>GameDefinition</code></td><td>Document both, mark which is canonical and which is being deprecated.</td></tr>
+        <tr><td>Versioning</td><td>"single latest version, no history"</td><td>Confirmed: edit overwrites</td><td>Decide whether to add lightweight history (see §13 — recommended).</td></tr>
+        <tr><td>Step tracker</td><td>All 7 steps unchecked</td><td>Steps 1–6 effectively done, 7 partial</td><td>Update <code>ARCHITECTURE.md</code> tracker.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============== 3. BACKEND GAPS ============== -->
+  <section class="block" id="backend-gaps">
+    <h2><span class="ix">3</span> Backend gaps</h2>
+    <p class="lead">The backend is the most mature part of the codebase. The remaining gaps are about productionization rather than features.</p>
+
+    <h3 class="sub">Auth &amp; account lifecycle</h3>
+    <ul class="gap">
+      <li class="crit">
+        <div class="row-title"><span class="tag crit">Critical</span> No password reset / forgot password</div>
+        <div class="row-body">If a user forgets their password they are locked out forever. There is no email transport configured.</div>
+        <div class="row-fix"><b>Fix:</b> add <code>/api/auth/request-reset</code> + <code>/api/auth/reset</code>, email via Resend / Postmark / SES, signed token with 15-min expiry.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No email verification</div>
+        <div class="row-body">Anyone can register with any email. This becomes a problem when you start spending OpenAI tokens.</div>
+        <div class="row-fix"><b>Fix:</b> verification email on register, block spend until verified.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No account settings endpoints</div>
+        <div class="row-body">User cannot change display name, password, or email. There is no <code>PATCH /api/auth/me</code>.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No OAuth providers</div>
+        <div class="row-body">Spec mentioned "Google/Discord TBD". Non-technical users on a SaaS expect Google sign-in.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No JWT refresh / revocation</div>
+        <div class="row-body">Token never expires server-side. A leaked token is valid forever. Add a token version column or short-lived JWT + refresh token.</div>
+      </li>
+    </ul>
+
+    <h3 class="sub">Tokens, billing, abuse</h3>
+    <ul class="gap">
+      <li class="crit">
+        <div class="row-title"><span class="tag crit">Critical</span> Tokens cannot be purchased</div>
+        <div class="row-body">There is a token balance, a grant-by-admin route, and per-action spending — but no Stripe customer, no checkout, no webhook, no plan upgrade endpoint.</div>
+        <div class="row-fix"><b>Fix:</b> Stripe Checkout + <code>/api/billing/portal</code>, webhook to credit tokens, idempotency keys, store invoices.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No daily / per-IP cost cap</div>
+        <div class="row-body">A bug or a malicious user could burn the OpenAI budget. Rate limiting only protects request count, not cost.</div>
+        <div class="row-fix"><b>Fix:</b> daily $ cap per user and global cap, log <code>usage.total_tokens</code> per call, kill switch when threshold exceeded.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> Token cost constants are static</div>
+        <div class="row-body"><code>TOKEN_COSTS.NEW_GAME</code> etc. live in code. Pricing changes require a deploy.</div>
+        <div class="row-fix"><b>Fix:</b> move into a config table or env-driven JSON.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No refund / failure policy in code</div>
+        <div class="row-body">Spec says "no refund on failure" — but token spend currently happens <i>before</i> generation. If OpenAI fails after the spend, the user lost tokens for nothing.</div>
+        <div class="row-fix"><b>Fix:</b> two-phase reservation (hold tokens, commit on success, release on hard failure). At minimum, document this clearly in the UI.</div>
+      </li>
+    </ul>
+
+    <h3 class="sub">Generation pipeline</h3>
+    <ul class="gap">
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> Generation is synchronous</div>
+        <div class="row-body">A request to <code>/api/generate-game</code> can take 30-90 seconds. The HTTP connection ties up a worker, and any client retry causes a duplicate spend. There is no job queue, no progress streaming.</div>
+        <div class="row-fix"><b>Fix:</b> background queue (BullMQ + Redis, or simpler: in-process worker with Server-Sent Events) and a <code>POST /api/jobs</code> + <code>GET /api/jobs/:id/stream</code> pattern.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No streaming of model output</div>
+        <div class="row-body">Users wait staring at a spinner for &gt;30s. Even a fake "AI is thinking…" stream improves perceived performance.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No prompt-injection protection</div>
+        <div class="row-body">The user prompt is concatenated straight into the system prompt. Hostile input can hijack the schema or exfiltrate the system prompt.</div>
+        <div class="row-fix"><b>Fix:</b> wrap user input in clearly delimited <code>&lt;user_request&gt;...&lt;/user_request&gt;</code>, instruct the model to ignore instructions inside it, validate the output Zod schema strictly (already done — keep doing it).</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> Dual JSON shape is confusing</div>
+        <div class="row-body">Old <code>gameJSON</code> (legacy templateBuilder) and new <code>GameDefinition</code> (engine) are both alive. The frontend currently uses the legacy path. Pick one as canonical and have the other auto-translate.</div>
+      </li>
+      <li class="low">
+        <div class="row-title"><span class="tag low">Low</span> Fallback generator is a band-aid</div>
+        <div class="row-body"><code>fallbackAIService</code> is great for dev when OpenAI is down, but in production it produces a template game that does not match the user's prompt. Consider disabling in <code>NODE_ENV=production</code>.</div>
+      </li>
+    </ul>
+
+    <h3 class="sub">Data / persistence</h3>
+    <ul class="gap">
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> SQLite is single-instance</div>
+        <div class="row-body">You cannot horizontally scale. Backups are file-copies. WAL files exist (<code>gaming-vibe.db-wal</code>) so a careless deploy could corrupt data.</div>
+        <div class="row-fix"><b>Fix path A:</b> stay on SQLite + Litestream replication (cheap, fine for early users). <b>Fix path B:</b> migrate to Postgres before public launch.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No automated backups</div>
+        <div class="row-body">No nightly dump, no off-host backup. Losing the SQLite file means losing every user game.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No soft-delete / trash</div>
+        <div class="row-body"><code>DELETE /api/games/:id</code> is hard-delete. A non-technical user clicking by mistake loses work.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No game version history</div>
+        <div class="row-body">Spec says "no history" but most users will eventually ask "undo my last edit". A 5-snapshot ring buffer is cheap.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> Asset manifest exists but assets are not stored</div>
+        <div class="row-body"><code>buildAssetManifest()</code> records URLs but the backend does not host or proxy generated assets. Generated images would need an object store.</div>
+      </li>
+    </ul>
+
+    <h3 class="sub">Other backend gaps</h3>
+    <ul class="gap">
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No <code>GET /api/health</code> deep readiness</div>
+        <div class="row-body">Current health endpoint is good but does not verify OpenAI connectivity. A failing key still shows green until the user generates.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No CORS allow-list</div>
+        <div class="row-body">Currently relies on <code>cors()</code> defaults. Production should pin allowed origins per env.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No request/response size limits documented</div>
+        <div class="row-body">Express defaults silently accept multi-MB JSON. Set explicit <code>express.json({ limit: '256kb' })</code> with bigger limit only on game-create.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No structured error codes</div>
+        <div class="row-body">Errors return free-text messages. Frontend would benefit from stable error codes (<code>OPENAI_NOT_CONFIGURED</code>, <code>TOKENS_INSUFFICIENT</code>, …).</div>
+      </li>
+      <li class="low">
+        <div class="row-title"><span class="tag low">Low</span> No OpenAPI / generated SDK</div>
+        <div class="row-body">Zod schemas are server-only. Frontend types are hand-maintained — they will drift. Consider <code>zod-to-openapi</code> or shared <code>@gvc/contracts</code> package.</div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============== 4. FRONTEND GAPS ============== -->
+  <section class="block" id="frontend-gaps">
+    <h2><span class="ix">4</span> Frontend gaps (the new app)</h2>
+    <p class="lead">The new <code>frontend/</code> covers the documented MVP flow end-to-end. Below is everything that is intentionally not yet wired and should land before public launch.</p>
+
+    <h3 class="sub">Functional gaps</h3>
+    <ul class="gap">
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> Engine generation path is implemented in API but not exposed in UI</div>
+        <div class="row-body"><code>engineApi.generate()</code> exists in <code>src/api/endpoints.ts</code> but no page calls it. Users cannot try the new <code>GameDefinition</code> runtime from the product.</div>
+        <div class="row-fix"><b>Fix:</b> add a "Use new engine (beta)" toggle on the Builder page; render the result via an in-page <code>GameRuntime</code> import from <code>gvc-game-engine</code>, or a dedicated <code>/build/engine</code> route.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No real onboarding</div>
+        <div class="row-body">First-time user lands on dashboard with no tutorial. Non-technical users will not know what to type as a prompt.</div>
+        <div class="row-fix"><b>Fix:</b> empty-state dashboard with 3 example prompts, "first game in 60 seconds" guided flow, prompt suggestions on the Builder page.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No password reset / change-password UI</div>
+        <div class="row-body">Even when the backend ships it, the frontend has no <code>/forgot</code> or <code>/account</code> route.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No upgrade / billing screen</div>
+        <div class="row-body">Token badge shows balance but there is no way to buy more.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No game search / filter / sort</div>
+        <div class="row-body">Games list shows everything in a flat list. Becomes painful past ~20 games.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No share-link / public preview</div>
+        <div class="row-body">Backend has <code>isPublished</code> flag; frontend ignores it. There is no public "view someone else's game" route.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No auto-refresh of token balance</div>
+        <div class="row-body">Token badge refreshes only after generation calls. If admin grants tokens out-of-band, the UI lies until the user clicks the badge.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No undo for delete</div>
+        <div class="row-body">A confirm() dialog is the only safety net. A toast with "Undo" + 5-second window would be friendlier.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> Edit history is invisible</div>
+        <div class="row-body">After several edits the user has no record of what they asked. Surface the prompts log (<code>prompts_history</code> table) in the GameDetail page.</div>
+      </li>
+      <li class="low">
+        <div class="row-title"><span class="tag low">Low</span> No keyboard shortcuts in builder</div>
+        <div class="row-body"><code>Ctrl+Enter</code> to generate, <code>/</code> to focus prompt — small wins.</div>
+      </li>
+    </ul>
+
+    <h3 class="sub">Engineering gaps</h3>
+    <ul class="gap">
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No tests</div>
+        <div class="row-body">Zero unit, component, or e2e tests in <code>frontend/</code>. The whole client could silently regress.</div>
+        <div class="row-fix"><b>Fix:</b> Vitest + React Testing Library for hooks and critical components (AuthContext, GameBuilder flow). Playwright for one happy-path e2e.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No global toast / notification system</div>
+        <div class="row-body">Errors are shown inline per page. Background actions (delete, download) use <code>alert()</code>. That is not SaaS-grade.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No data layer caching</div>
+        <div class="row-body">Every navigation refetches games. <i>React Query</i> would be a one-day win — caching, retries, deduping, stale-while-revalidate, optimistic updates.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> Iframe sandbox is permissive</div>
+        <div class="row-body"><code>GamePreview</code> uses <code>allow-scripts allow-same-origin</code>. Same-origin lets the embedded HTML read parent storage. Drop <code>allow-same-origin</code> and host previews on a separate origin (e.g. <code>preview.gvc.app</code>) before public launch.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No error boundary</div>
+        <div class="row-body">A render error in any route blanks the whole app. Add a top-level <code>&lt;ErrorBoundary&gt;</code> with a "Reload" CTA.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No analytics</div>
+        <div class="row-body">No PostHog / Plausible / GA. We will not know what users actually do.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No theming / dark mode</div>
+        <div class="row-body">Spec said "not dark dashboard" — fine. But we should still respect <code>prefers-color-scheme</code> for the marketing pages later.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No i18n</div>
+        <div class="row-body">Project author works in Hebrew. The product currently ships English only. At minimum extract strings and add an <code>en/he.json</code> with <code>react-i18next</code>.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No accessibility audit</div>
+        <div class="row-body">No <code>aria-live</code> for progress messages, color-only state indicators, no focus-trap on the health-popover.</div>
+      </li>
+      <li class="low">
+        <div class="row-title"><span class="tag low">Low</span> Bundle is one chunk</div>
+        <div class="row-body">The whole app is one ~205KB JS file. Lazy-load <code>StatsPage</code>, <code>GamePreview</code>, and engine-runtime when added.</div>
+      </li>
+      <li class="low">
+        <div class="row-title"><span class="tag low">Low</span> No PWA</div>
+        <div class="row-body">No service worker, no installability, no offline fallback page.</div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============== 5. ENGINE GAPS ============== -->
+  <section class="block" id="engine-gaps">
+    <h2><span class="ix">5</span> GAME_ENGINE gaps</h2>
+    <p class="lead">The engine has a real ECS architecture and supports 2D + 3D + physics + tweens + spawners + UI. The biggest gaps are integration and DX.</p>
+
+    <ul class="gap">
+      <li class="crit">
+        <div class="row-title"><span class="tag crit">Critical</span> Engine is not consumed by the new frontend</div>
+        <div class="row-body">The frontend uses backend-rendered <code>htmlString</code> in an iframe. The engine therefore only runs in <code>GAME_ENGINE/examples/playground</code>. Two parallel runtimes is technical debt.</div>
+        <div class="row-fix"><b>Fix:</b> add the engine as a workspace dependency in <code>frontend/package.json</code>, expose a <code>&lt;EngineCanvas definition={…} /&gt;</code> component, and route engine-generated games to it.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No mobile / touch input bindings</div>
+        <div class="row-body"><code>VirtualJoystick</code> exists but the GameDefinition schema does not let the AI specify touch controls per genre. Phones cannot play the generated games.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No asset loading from arbitrary URLs in safe mode</div>
+        <div class="row-body">Sample games reference local <code>./assets/...</code>. There is no CDN-prefix awareness, no signed URL handling, no error UI when an image 404s.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No save / load game state in-engine</div>
+        <div class="row-body"><code>GameStateStore</code> has snapshots but no persistence. Users cannot resume a game after refresh.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No FPS / performance budget guard</div>
+        <div class="row-body">Generated content can spawn 1,000 entities and tank low-end devices. Add an entity-cap warning + a low-spec mode toggle.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No audio assets pipeline</div>
+        <div class="row-body"><code>AudioSystem</code> exists but the AI is never told to add SFX/music, and no royalty-free pack is wired in.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> Engine bundle size will be heavy</div>
+        <div class="row-body">Three.js + Phaser + Rapier in one bundle is ~1.5MB+ gzipped. When integrated, code-split per renderer (only load Three.js for 3D games, only Phaser for 2D).</div>
+      </li>
+      <li class="low">
+        <div class="row-title"><span class="tag low">Low</span> No editor / inspector overlay</div>
+        <div class="row-body">A devtools-like panel showing entity tree, state values, scene graph would help during prompt iteration.</div>
+      </li>
+      <li class="low">
+        <div class="row-title"><span class="tag low">Low</span> Missing high-level capabilities the AI does not know about</div>
+        <div class="row-body">No particle system, no post-processing, no shaders, no networking, no save-slot helpers. Either add to the engine, or document them as out-of-scope.</div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============== 6. CROSS-CUTTING ============== -->
+  <section class="block" id="cross-cutting">
+    <h2><span class="ix">6</span> Cross-cutting concerns</h2>
+
+    <div class="grid-2">
+      <div>
+        <h3 class="sub">Repo &amp; tooling</h3>
+        <ul class="gap">
+          <li class="high">
+            <div class="row-title"><span class="tag high">High</span> No CI</div>
+            <div class="row-body">No GitHub Actions / GitLab CI. Tests, type-checks, and lint do not run on PRs.</div>
+          </li>
+          <li class="high">
+            <div class="row-title"><span class="tag high">High</span> No shared <code>contracts</code> package</div>
+            <div class="row-body">Backend Zod schemas and frontend TS types are duplicated. They will drift.</div>
+          </li>
+          <li class="med">
+            <div class="row-title"><span class="tag med">Medium</span> Frontend is not in the npm workspaces list</div>
+            <div class="row-body">Root <code>package.json</code> only lists <code>GAME_ENGINE</code>, <code>prototype</code>, <code>prototype/backend</code>. Add <code>frontend</code> so installs are unified.</div>
+          </li>
+          <li class="med">
+            <div class="row-title"><span class="tag med">Medium</span> No formatter/linter</div>
+            <div class="row-body">No Prettier config, no ESLint config in the new frontend. Inconsistent style will appear with multiple contributors.</div>
+          </li>
+          <li class="low">
+            <div class="row-title"><span class="tag low">Low</span> No <code>.editorconfig</code> / commit hooks</div>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <h3 class="sub">UX consistency</h3>
+        <ul class="gap">
+          <li class="high">
+            <div class="row-title"><span class="tag high">High</span> RTL/Hebrew support unverified</div>
+            <div class="row-body">Author writes in Hebrew. UI is LTR-only. CSS does not use logical properties.</div>
+          </li>
+          <li class="med">
+            <div class="row-title"><span class="tag med">Medium</span> Mixed iconography</div>
+            <div class="row-body">Sidebar uses Unicode glyphs (⌂, ✨). Replace with a real icon set (Lucide / Phosphor) for crisper rendering.</div>
+          </li>
+          <li class="med">
+            <div class="row-title"><span class="tag med">Medium</span> No empty / error / loading skeletons</div>
+            <div class="row-body">Lists show a spinner. Skeletons feel faster.</div>
+          </li>
+          <li class="low">
+            <div class="row-title"><span class="tag low">Low</span> No motion design</div>
+            <div class="row-body">Page transitions and progress steps are static. A small <code>framer-motion</code> pass would lift perceived quality.</div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== 7. SECURITY ============== -->
+  <section class="block" id="security">
+    <h2><span class="ix">7</span> Security &amp; privacy</h2>
+    <ul class="gap">
+      <li class="crit">
+        <div class="row-title"><span class="tag crit">Critical</span> Generated HTML runs with <code>allow-same-origin</code></div>
+        <div class="row-body">The model literally writes JavaScript that runs in the user's browser. With <code>allow-same-origin</code>, that script can read <code>localStorage</code> (auth tokens!) on a successful XSS / prompt-injection.</div>
+        <div class="row-fix"><b>Fix:</b> drop <code>allow-same-origin</code>; serve previews from a sibling origin (e.g. <code>preview.gvc.app</code>); add CSP <code>default-src 'self'</code> to the generated HTML; review what <code>templateBuilder</code> emits for unescaped user content.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No CSP on the main app</div>
+        <div class="row-body">Helmet is on, but no explicit Content-Security-Policy. With AI-generated content nearby, a hardened CSP is mandatory.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No audit log</div>
+        <div class="row-body">Analytics table tracks events but admin actions (token grants, bans) are not separately logged. For compliance and abuse triage you want a tamper-evident trail.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No GDPR / privacy basics</div>
+        <div class="row-body">No cookie banner (we use localStorage, not strictly cookies, but still), no privacy policy, no "delete my account" endpoint, no data export.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No abuse / content moderation</div>
+        <div class="row-body">Users can prompt for hateful or copyrighted content. Add OpenAI moderation (<code>omni-moderation-latest</code>) on every prompt before generation.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> Secrets handling</div>
+        <div class="row-body">No example deploy script for rotating <code>OPENAI_API_KEY</code>, no secret manager integration, only <code>.env</code> files.</div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============== 8. OBSERVABILITY ============== -->
+  <section class="block" id="observability">
+    <h2><span class="ix">8</span> Observability &amp; ops</h2>
+    <ul class="gap">
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No external error reporting</div>
+        <div class="row-body">Pino logs to disk only. Sentry / Highlight on both backend and frontend would catch real-world failures.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No cost dashboard</div>
+        <div class="row-body">You currently cannot answer "how much OpenAI spend per active user this week?" without reading SQLite by hand.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No metrics export</div>
+        <div class="row-body">No Prometheus, no OpenTelemetry. <code>/api/stats</code> is admin-only and aggregated; you cannot alert on it.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No uptime monitoring</div>
+        <div class="row-body">No external pinger. Combine with structured <code>/api/health</code> readiness checks.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No deploy artifact / Dockerfile</div>
+        <div class="row-body">There is no canonical way to ship the backend or the frontend. <code>start.bat</code> exists for local dev only.</div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============== 9. MONETIZATION ============== -->
+  <section class="block" id="payments">
+    <h2><span class="ix">9</span> Monetization &amp; payments</h2>
+    <ul class="gap">
+      <li class="crit">
+        <div class="row-title"><span class="tag crit">Critical</span> No payment provider integrated</div>
+        <div class="row-body">Plans are described in docs but the only way to get tokens is the admin grant route. The product cannot earn money.</div>
+        <div class="row-fix"><b>Fix:</b> Stripe (Checkout for one-shot token packs, Billing for subscriptions). Webhook → credit tokens with idempotency. Customer portal for cancel / update card. Tax handling via Stripe Tax. Receipts via email.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No plans table / feature gating</div>
+        <div class="row-body"><code>subscriptionTier</code> is a free-text column with no enforcement matrix. Define plans (Free / Pro / Studio) and codify which features each can use.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No referral / invite credit</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No coupon / promo code support</div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============== 10. ASSETS ============== -->
+  <section class="block" id="assets">
+    <h2><span class="ix">10</span> Asset generation pipeline</h2>
+    <p class="lead">Both <code>tools/game-dev-pack/asset-generation/fal-unverified</code> and <code>retro-unverified</code> exist but are <i>not connected</i> to any code path. Generated games today look like colored boxes.</p>
+    <ul class="gap">
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No image generation in the loop</div>
+        <div class="row-body">A platformer "with a fox" still gets a beige cube. fal.ai / Replicate / DALL·E should generate sprites and the engine should consume them.</div>
+        <div class="row-fix"><b>Fix:</b> after the GameDefinition is produced, run a second AI pass to enumerate needed assets (player, enemies, backgrounds), generate them, store in object storage, and inject URLs into the definition's <code>assets</code> array.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No object storage</div>
+        <div class="row-body">There is no S3 / R2 bucket configured. Generated images would have nowhere to live.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No royalty-free fallback pack</div>
+        <div class="row-body">When generation fails, the engine should fall back to a curated kit of CC0 sprites and audio.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No audio generation</div>
+        <div class="row-body">No SFX/music pipeline at all (e.g. ElevenLabs sound, Suno).</div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============== 11. TESTING ============== -->
+  <section class="block" id="testing">
+    <h2><span class="ix">11</span> Testing &amp; quality</h2>
+    <ul class="gap">
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> One backend test file, no frontend tests, sparse engine tests</div>
+        <div class="row-body"><code>prototype/backend/tests/backend.test.js</code> exists. <code>GAME_ENGINE/tests/</code> has files (good). <code>frontend/</code> has none.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> No e2e</div>
+        <div class="row-body">A Playwright run covering "register → set API key in admin → generate game → see preview" would catch 80% of regressions.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No load test</div>
+        <div class="row-body">k6 or Artillery to verify the rate limiter and SQLite under concurrent generation requests.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No visual regression</div>
+        <div class="row-body">Chromatic / Percy on the builder + dashboard.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No prompt regression suite</div>
+        <div class="row-body">Pin a small set of "golden prompts" and snapshot the resulting GameDefinition. Detect when a model upgrade silently changes outputs.</div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============== 12. DOCS ============== -->
+  <section class="block" id="docs">
+    <h2><span class="ix">12</span> Documentation drift</h2>
+    <ul class="gap">
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> Three overlapping product docs</div>
+        <div class="row-body"><code>Claude.md</code>, <code>AGENTS.md</code>, <code>ARCHITECTURE.md</code> repeat each other and disagree on the stack. Pick one canonical doc; turn the others into pointers.</div>
+      </li>
+      <li class="high">
+        <div class="row-title"><span class="tag high">High</span> Tracker is stale</div>
+        <div class="row-body">All seven phases in <code>ARCHITECTURE.md</code> are unchecked even though the backend, the engine, and the frontend exist.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No runbook</div>
+        <div class="row-body">No "how to deploy", "how to rotate keys", "how to restore from backup" doc.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> No API reference</div>
+        <div class="row-body">No human-readable list of endpoints. Generate from Zod or write by hand.</div>
+      </li>
+      <li class="med">
+        <div class="row-title"><span class="tag med">Medium</span> Frontend README is brief</div>
+        <div class="row-body">Add a screenshot, a feature checklist, and a troubleshooting section.</div>
+      </li>
+      <li class="low">
+        <div class="row-title"><span class="tag low">Low</span> No CHANGELOG</div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============== 13. NEW SYSTEMS ============== -->
+  <section class="block" id="new-systems">
+    <h2><span class="ix">13</span> Recommended new systems</h2>
+    <p class="lead">Beyond fixing what is already there, these are systems I would actively add. Each one moves the product noticeably closer to a real SaaS.</p>
+
+    <div class="ideas-grid">
+      <div class="idea">
+        <h4>1. Job queue + progress stream</h4>
+        <p>Move generation off the request thread. Let the Builder UI show real progress (tokens used, model thinking, validating, building HTML).</p>
+      </div>
+      <div class="idea">
+        <h4>2. Shared <code>@gvc/contracts</code> package</h4>
+        <p>One Zod source of truth, consumed by backend and frontend. Compile-time guarantee that types match.</p>
+      </div>
+      <div class="idea">
+        <h4>3. Asset Studio</h4>
+        <p>Per-game asset gallery with regenerate / replace / upload. The user can swap a sprite without re-running the whole generation.</p>
+      </div>
+      <div class="idea">
+        <h4>4. Prompt Library</h4>
+        <p>Curated prompt templates (RPG, runner, puzzle…) the user can pick and tweak. Doubles as marketing collateral.</p>
+      </div>
+      <div class="idea">
+        <h4>5. Public Gallery</h4>
+        <p>If <code>isPublished</code>, show the game on a public discover page. Users sharing their creations is the cheapest growth loop.</p>
+      </div>
+      <div class="idea">
+        <h4>6. Remix flow</h4>
+        <p>"Open this public game in my account and edit it." Forks are powerful and well-understood by non-technical users (Scratch, CodePen).</p>
+      </div>
+      <div class="idea">
+        <h4>7. Versioned snapshots</h4>
+        <p>Even if "no history" is the policy, a 5-step ring buffer per game is cheap and answers "undo" requests.</p>
+      </div>
+      <div class="idea">
+        <h4>8. Soft-delete + Trash</h4>
+        <p>30-day trash. Avoid panicked support tickets when someone clicks Delete.</p>
+      </div>
+      <div class="idea">
+        <h4>9. Moderation gate</h4>
+        <p>OpenAI <code>omni-moderation-latest</code> on every prompt. Block hate / sexual minors / violence-against-real-person before spending tokens.</p>
+      </div>
+      <div class="idea">
+        <h4>10. Cost guardrails</h4>
+        <p>Per-user daily $ cap; global kill switch. Prevents a single bug or abuser from draining the OpenAI budget.</p>
+      </div>
+      <div class="idea">
+        <h4>11. Admin console</h4>
+        <p>The current <code>/stats</code> page is a start. Add user search, ban, refund-tokens, view recent generations, replay prompt.</p>
+      </div>
+      <div class="idea">
+        <h4>12. Telemetry &amp; product analytics</h4>
+        <p>PostHog. Funnels: signup → first prompt → first generated game → second edit. We need to know where users drop.</p>
+      </div>
+      <div class="idea">
+        <h4>13. Embed SDK</h4>
+        <p>A <code>&lt;script src="…/embed.js"&gt;</code> that lets users embed their generated games on their own sites. Strong viral mechanic.</p>
+      </div>
+      <div class="idea">
+        <h4>14. CLI / API tier</h4>
+        <p>A future "Studio" plan that exposes the JSON API to power users — they can integrate game generation into their own pipeline.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== 14. ROADMAP ============== -->
+  <section class="block" id="roadmap">
+    <h2><span class="ix">14</span> Suggested roadmap</h2>
+    <p class="lead">Concrete, ordered, and small enough to actually finish. Each phase is ~1–2 weeks of focused solo work.</p>
+
+    <div class="roadmap">
+      <div class="phase">
+        <h4><span class="num">1</span> Stabilize MVP</h4>
+        <div class="when">Goal: real users can sign up, generate, play, save without losing data.</div>
+        <ul>
+          <li>Sentry on backend + frontend; structured error codes.</li>
+          <li>SQLite backups (Litestream to S3) <i>or</i> Postgres migration.</li>
+          <li>Two-phase token reservation (hold / commit / release).</li>
+          <li>Iframe sandbox hardening: drop <code>allow-same-origin</code>, separate preview origin, CSP on generated HTML.</li>
+          <li>Password reset flow (backend + frontend).</li>
+          <li>Global toast system + error boundary in frontend.</li>
+          <li>Frontend tests for Auth + Builder happy path; one Playwright e2e.</li>
+        </ul>
+      </div>
+
+      <div class="phase">
+        <h4><span class="num">2</span> Make it earn money</h4>
+        <div class="when">Goal: a stranger can buy tokens with a credit card.</div>
+        <ul>
+          <li>Stripe Checkout + webhook + customer portal.</li>
+          <li>Plans table + feature gating matrix.</li>
+          <li>Billing page in frontend.</li>
+          <li>Daily $ cap per user + global kill switch.</li>
+          <li>Email transport (Resend) for receipts, verification, reset.</li>
+        </ul>
+      </div>
+
+      <div class="phase">
+        <h4><span class="num">3</span> Make the games actually good</h4>
+        <div class="when">Goal: generated games stop looking like colored boxes.</div>
+        <ul>
+          <li>Wire <code>tools/game-dev-pack</code> into the pipeline — image generation per game.</li>
+          <li>Object storage (S3 / R2) for assets.</li>
+          <li>Royalty-free fallback pack.</li>
+          <li>Switch frontend preview to engine runtime for new games (<code>GameDefinition</code> path).</li>
+          <li>Mobile / touch input bindings in engine; test on phone.</li>
+          <li>Audio generation (SFX + ambient music).</li>
+        </ul>
+      </div>
+
+      <div class="phase">
+        <h4><span class="num">4</span> Make it grow</h4>
+        <div class="when">Goal: users invite users.</div>
+        <ul>
+          <li>Public game gallery + share links.</li>
+          <li>"Remix this game" flow.</li>
+          <li>Embed SDK.</li>
+          <li>Onboarding tour, prompt library, examples.</li>
+          <li>Referral credit.</li>
+          <li>PostHog analytics; funnels for activation.</li>
+        </ul>
+      </div>
+
+      <div class="phase">
+        <h4><span class="num">5</span> Productionize</h4>
+        <div class="when">Goal: it runs without you watching it.</div>
+        <ul>
+          <li>Dockerfiles + docker-compose.</li>
+          <li>GitHub Actions CI: typecheck, test, build for backend, engine, frontend.</li>
+          <li>Migration to Postgres if not done.</li>
+          <li>Background job queue + SSE progress streaming.</li>
+          <li>Audit log for admin actions; admin console v2.</li>
+          <li>Privacy policy, ToS, account deletion, data export (GDPR).</li>
+          <li>OpenAPI generated from Zod; shared <code>@gvc/contracts</code> package.</li>
+        </ul>
+      </div>
+
+      <div class="phase">
+        <h4><span class="num">6</span> Differentiate</h4>
+        <div class="when">Goal: features that no competitor has.</div>
+        <ul>
+          <li>Asset Studio (regenerate / swap / upload assets per game).</li>
+          <li>Prompt Library + featured games.</li>
+          <li>Versioned snapshots / undo.</li>
+          <li>Realtime co-edit (later, big lift).</li>
+          <li>Studio plan with public API + CLI.</li>
+        </ul>
+      </div>
+    </div>
+
+    <details class="note">
+      <summary>One-day quick wins you could ship this week</summary>
+      <p>
+        ① Add <code>frontend</code> to the root npm workspaces.
+        ② Strip every Gemini reference from the docs (search for <code>gemini</code>).
+        ③ Update the <code>ARCHITECTURE.md</code> tracker to reflect actual progress.
+        ④ Drop <code>allow-same-origin</code> from <code>GamePreview</code> sandbox and verify previews still work.
+        ⑤ Add an <code>ErrorBoundary</code> + global toast system to the frontend.
+        ⑥ Replace <code>alert()</code> calls with toast.
+        ⑦ Add lazy-loading for the <code>StatsPage</code> and <code>GameDetailPage</code>.
+        ⑧ Add a Sentry DSN config to backend &amp; frontend, behind an env flag.
+      </p>
+    </details>
+  </section>
+
+</div>
+
+<footer>
+  Generated by an end-to-end scan of the repo (root, <code>prototype/backend</code>, <code>GAME_ENGINE</code>, <code>frontend/</code>) on 2026-05-02.
+  Cross-referenced against <code>Claude.md</code>, <code>ARCHITECTURE.md</code>, and <code>AGENTS.md</code>.
+</footer>
+
+</body>
+</html>

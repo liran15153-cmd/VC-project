@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎮 Gaming Vibe Coding</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-icon">🎮</span>
+          <span class="logo-text">GVC</span>
+        </div>
+      </div>
+
+      <button class="btn-new-game" id="btn-new-game">
+        <span class="icon">✨</span>
+        <span>משחק חדש</span>
+      </button>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">המשחקים שלי</div>
+        <div id="games-list" class="games-list">
+          <!-- Games will be rendered here -->
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="token-badge" id="token-badge">
+          <span class="token-icon">💎</span>
+          <div class="token-info">
+            <div class="token-amount" id="token-amount">100</div>
+            <div class="token-label">tokens</div>
+          </div>
+        </div>
+        <div class="user-info">
+          <div class="user-avatar">L</div>
+          <div class="user-details">
+            <div class="user-name">Lior</div>
+            <div class="user-plan">Pro Plan</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main id="main-content" class="main-content">
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <h1 id="current-view-title">Gaming Vibe Coding</h1>
+          <p id="current-view-subtitle" class="header-subtitle">בנה משחקים עם AI - בלי קוד</p>
+        </div>
+        <div class="header-right">
+          <button class="btn-icon" id="btn-docs" title="תיעוד">
+            <span>📚</span>
+          </button>
+          <button class="btn-icon" id="btn-reset" title="אפס הכל">
+            <span>🔄</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Workspace - Chat + Preview -->
+      <div class="workspace" id="workspace">
+        <!-- Chat Panel -->
+        <section class="chat-panel" id="chat-panel">
+          <div class="chat-header">
+            <div class="ai-status">
+              <div class="status-indicator"></div>
+              <div>
+                <div class="ai-name">Vibe AI</div>
+                <div class="ai-subtitle">מוכן ליצור משחקים</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-messages" id="chat-messages">
+            <!-- Messages rendered here -->
+          </div>
+
+          <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+              <textarea
+                id="chat-input"
+                class="chat-input"
+                placeholder="תאר את המשחק שאתה רוצה ליצור..."
+                rows="2"></textarea>
+              <button class="btn-send" id="btn-send">
+                <span class="send-icon">➤</span>
+              </button>
+            </div>
+            <div class="chat-suggestions" id="chat-suggestions">
+              <button class="suggestion-chip" data-prompt="בנה לי משחק פלטפורמר עם דרקונים">
+                🐉 פלטפורמר עם דרקונים
+              </button>
+              <button class="suggestion-chip" data-prompt="צור משחק חלל עם יורה מלמעלה">
+                🚀 משחק חלל
+              </button>
+              <button class="suggestion-chip" data-prompt="בנה משחק ריצה אינסופי עם מכשולים">
+                🏃 ריצה אינסופית
+              </button>
+              <button class="suggestion-chip" data-prompt="צור משחק שובר לבנים קלאסי">
+                🧱 שובר לבנים
+              </button>
+              <button class="suggestion-chip" data-prompt="בנה משחק RPG עם אוצרות ומבוך">
+                ⚔️ RPG מבוך
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Preview Panel -->
+        <section class="preview-panel" id="preview-panel">
+          <div class="preview-header">
+            <div class="preview-tabs">
+              <button class="preview-tab active" data-tab="game">
+                <span>🎮</span> משחק
+              </button>
+              <button class="preview-tab" data-tab="json">
+                <span>📋</span> JSON
+              </button>
+              <button class="preview-tab" data-tab="code">
+                <span>💻</span> Code
+              </button>
+            </div>
+            <div class="preview-actions" id="preview-actions" style="display: none;">
+              <button class="btn-action" id="btn-download" title="הורד משחק">
+                <span>📥</span>
+              </button>
+              <button class="btn-action" id="btn-fullscreen" title="מסך מלא">
+                <span>⛶</span>
+              </button>
+              <button class="btn-action btn-action-danger" id="btn-delete" title="מחק">
+                <span>🗑</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="preview-content" id="preview-content">
+            <!-- Empty State -->
+            <div class="empty-state" id="empty-state">
+              <div class="empty-icon">🎮</div>
+              <h2>אין משחק כרגע</h2>
+              <p>תאר ב-AI את המשחק שאתה רוצה והוא ייצר עבורך תוך כמה שניות!</p>
+              <div class="empty-features">
+                <div class="feature-item">
+                  <span>🎨</span>
+                  <span>2D & 3D</span>
+                </div>
+                <div class="feature-item">
+                  <span>⚡</span>
+                  <span>תוצאה מיידית</span>
+                </div>
+                <div class="feature-item">
+                  <span>✏️</span>
+                  <span>עריכה דרך צ'אט</span>
+                </div>
+                <div class="feature-item">
+                  <span>📥</span>
+                  <span>הורדה והרצה</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Game iframe will be inserted here -->
+            <iframe id="game-iframe" class="game-iframe" style="display: none;"></iframe>
+
+            <!-- JSON Display -->
+            <pre id="json-display" class="code-display" style="display: none;"></pre>
+
+            <!-- Code Display -->
+            <pre id="code-display" class="code-display" style="display: none;"></pre>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">יוצר את המשחק...</div>
+        <div class="loading-subtext" id="loading-subtext">AI חושב על הקוד הטוב ביותר</div>
+        <div class="loading-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+          <div class="progress-steps">
+            <div class="progress-step" data-step="1">📝 ניתוח</div>
+            <div class="progress-step" data-step="2">🎨 עיצוב</div>
+            <div class="progress-step" data-step="3">⚙️ בנייה</div>
+            <div class="progress-step" data-step="4">✅ ולידציה</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phaser.js for game rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+
+  <!-- Application Scripts (loaded in dependency order) -->
+  <script src="js/storage.js"></script>
+  <script src="js/utils/toast.js"></script>
+
+  <!-- AI Module -->
+  <script src="js/ai/systemPrompt2D.js"></script>
+  <script src="js/ai/systemPrompt3D.js"></script>
+  <script src="js/ai/mcqGenerator.js"></script>
+  <script src="js/ai/mockAI.js"></script>
+
+  <!-- Builder Module -->
+  <script src="js/builder/validator.js"></script>
+  <script src="js/builder/gameTemplates.js"></script>
+  <script src="js/builder/templateBuilder.js"></script>
+
+  <!-- Components -->
+  <script src="js/components/sidebar.js"></script>
+  <script src="js/components/chat.js"></script>
+  <script src="js/components/preview.js"></script>
+
+  <!-- State & App -->
+  <script src="js/state.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

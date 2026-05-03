@@ -1,0 +1,22 @@
+{
+  "name": "gaming-vibe-coding-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Workspace for the Gaming Vibe Coding prototype, backend, and game engine.",
+  "workspaces": [
+    "GAME_ENGINE",
+    "prototype",
+    "prototype/backend"
+  ],
+  "scripts": {
+    "engine:dev": "npm run dev -w gvc-game-engine",
+    "engine:verify": "npm run verify -w gvc-game-engine",
+    "prototype:dev": "npm run dev -w gaming-vibe-prototype",
+    "prototype:frontend": "npm run frontend -w gaming-vibe-prototype",
+    "backend:start": "npm run start -w gaming-vibe-coding-backend",
+    "backend:dev": "npm run dev -w gaming-vibe-coding-backend",
+    "backend:check": "npm run check -w gaming-vibe-coding-backend",
+    "backend:test": "npm run test -w gaming-vibe-coding-backend",
+    "verify": "npm run engine:verify && npm run backend:check && npm run backend:test"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "gvc-game-engine",
+  "version": "0.1.0",
+  "description": "Modular Game Engine - Three.js + Phaser + Rapier with ECS architecture",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "npm run typecheck && npm run test && npm run build"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.13.0",
+    "phaser": "^3.70.0",
+    "three": "^0.160.0",
+    "zod": "^4.4.2"
+  },
+  "devDependencies": {
+    "@types/three": "^0.160.0",
+    "typescript": "^5.3.0",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.5"
+  }
+}

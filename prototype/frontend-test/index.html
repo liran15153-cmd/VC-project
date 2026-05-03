@@ -1,0 +1,239 @@
+﻿<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gaming Vibe Coding - Backend Tester</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="side">
+      <div class="brand">
+        <div class="brand-mark">GVC</div>
+        <div>
+          <h1>Backend Tester</h1>
+          <p>׳‘׳“׳™׳§׳× Auth, Tokens, AI, Games ׳•-Download</p>
+        </div>
+      </div>
+
+      <section class="panel compact">
+        <label for="apiBase">Backend URL</label>
+        <div class="inline">
+          <input id="apiBase" type="url" value="http://localhost:3000/api">
+          <button id="btnHealth" class="icon-btn" title="׳‘׳“׳™׳§׳× ׳©׳¨׳×">ג†»</button>
+        </div>
+        <div id="healthStatus" class="status muted">׳׳ ׳ ׳‘׳“׳§ ׳¢׳“׳™׳™׳</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>׳׳©׳×׳׳©</h2>
+          <button id="btnLogout" class="ghost hidden">Logout</button>
+        </div>
+
+        <div id="authForms" class="stack">
+          <div class="split">
+            <label>
+              Email
+              <input id="email" type="email" value="lior@example.com" autocomplete="email">
+            </label>
+            <label>
+              Password
+              <input id="password" type="password" value="password123" autocomplete="current-password">
+            </label>
+          </div>
+          <label>
+            Display name
+            <input id="displayName" type="text" value="Lior">
+          </label>
+          <div class="actions">
+            <button id="btnRegister" class="primary">Register</button>
+            <button id="btnLogin">Login</button>
+          </div>
+        </div>
+
+        <div id="userBox" class="user-box hidden">
+          <div>
+            <strong id="userEmail">-</strong>
+            <span id="userRole" class="badge">user</span>
+          </div>
+          <div class="token-row">
+            <span>Tokens</span>
+            <strong id="tokenBalance">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel compact">
+        <div class="panel-head">
+          <h2>׳׳©׳—׳§׳™׳</h2>
+          <button id="btnRefreshGames" class="ghost">Refresh</button>
+        </div>
+        <div id="gamesList" class="games-list"></div>
+      </section>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h2 id="pageTitle">Gaming Vibe Coding</h2>
+          <p id="pageSub">׳›׳ ׳”׳–׳¨׳™׳׳” ׳©׳ ׳”-backend ׳‘׳׳§׳•׳ ׳׳—׳“</p>
+        </div>
+        <div class="top-actions">
+          <button class="tab active" data-tab="create">Create</button>
+          <button class="tab" data-tab="preview">Preview</button>
+          <button class="tab" data-tab="edit">Edit</button>
+          <button class="tab" data-tab="admin">Admin</button>
+        </div>
+      </header>
+
+      <section id="tabCreate" class="view active">
+        <div class="work-grid">
+          <section class="panel">
+            <h2>׳™׳¦׳™׳¨׳× ׳׳©׳—׳§</h2>
+            <div class="stack">
+              <label>
+                Prompt
+                <textarea id="gamePrompt" rows="4">Build me a fantasy platformer with dragons, coins, enemies and simple jumping.</textarea>
+              </label>
+              <div class="split three">
+                <label>
+                  Dimension
+                  <select id="dimension">
+                    <option value="2D">2D</option>
+                    <option value="3D">3D</option>
+                  </select>
+                </label>
+                <label>
+                  Game type
+                  <select id="gameType"></select>
+                </label>
+                <label>
+                  Model
+                  <select id="model">
+                    <option value="">Default</option>
+                    <option value="gpt-5">gpt-5</option>
+                    <option value="gpt-5">gpt-5</option>
+                    <option value="gpt-5">gpt-5</option>
+                  </select>
+                </label>
+              </div>
+              <div class="actions">
+                <button id="btnGenerateMcq">Generate MCQ</button>
+                <button id="btnGenerateGame" class="primary">Generate Game</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>MCQ Answers</h2>
+              <button id="btnClearMcq" class="ghost">Clear</button>
+            </div>
+            <div id="mcqBox" class="mcq-box empty">
+              ׳׳™׳ ׳©׳׳׳•׳× ׳¢׳“׳™׳™׳
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="tabPreview" class="view">
+        <div class="preview-layout">
+          <section class="panel preview-panel">
+            <div class="panel-head">
+              <div>
+                <h2 id="gameTitle">׳׳™׳ ׳׳©׳—׳§ ׳˜׳¢׳•׳</h2>
+                <p id="gameMeta" class="muted">׳¦׳•׳¨ ׳׳• ׳˜׳¢׳ ׳׳©׳—׳§ ׳׳”׳¨׳©׳™׳׳”</p>
+              </div>
+              <div class="actions">
+                <button id="btnReloadFrame">Reload</button>
+                <button id="btnDownload" class="primary" disabled>Download ZIP</button>
+              </div>
+            </div>
+            <iframe id="gameFrame" title="Game preview"></iframe>
+          </section>
+
+          <section class="panel inspector">
+            <div class="tabs small-tabs">
+              <button class="mini-tab active" data-inspector="json">JSON</button>
+              <button class="mini-tab" data-inspector="assets">Assets</button>
+              <button class="mini-tab" data-inspector="html">HTML</button>
+            </div>
+            <pre id="jsonOut" class="code"></pre>
+            <pre id="assetsOut" class="code hidden"></pre>
+            <pre id="htmlOut" class="code hidden"></pre>
+          </section>
+        </div>
+      </section>
+
+      <section id="tabEdit" class="view">
+        <div class="work-grid">
+          <section class="panel">
+            <h2>׳¢׳¨׳™׳›׳× ׳׳©׳—׳§ ׳§׳™׳™׳</h2>
+            <div class="stack">
+              <label>
+                Game ID
+                <input id="editGameId" type="text" placeholder="׳‘׳—׳¨ ׳׳©׳—׳§ ׳׳”׳¨׳©׳™׳׳” ׳׳• ׳¦׳•׳¨ ׳—׳“׳©">
+              </label>
+              <label>
+                Edit prompt
+                <textarea id="editPrompt" rows="5">Add a health potion collectible and make the enemies slower.</textarea>
+              </label>
+              <button id="btnEditGame" class="primary">Apply Edit</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h2>׳₪׳¢׳•׳׳•׳× ׳¢׳ ׳”׳׳©׳—׳§</h2>
+            <div class="button-stack">
+              <button id="btnLoadCurrent">Load by Game ID</button>
+              <button id="btnAssets">Fetch Assets</button>
+              <button id="btnDeleteGame" class="danger">Delete Current Game</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="tabAdmin" class="view">
+        <div class="work-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Admin Stats</h2>
+              <button id="btnStats">Load Stats</button>
+            </div>
+            <pre id="statsOut" class="code"></pre>
+          </section>
+
+          <section class="panel">
+            <h2>Grant Tokens</h2>
+            <div class="stack">
+              <label>
+                User ID
+                <input id="grantUserId" type="text">
+              </label>
+              <label>
+                Amount
+                <input id="grantAmount" type="number" value="25" min="1">
+              </label>
+              <button id="btnGrant" class="primary">Grant</button>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toastHost" class="toast-host"></div>
+  <div id="busy" class="busy hidden">
+    <div class="busy-box">
+      <div class="spinner"></div>
+      <strong id="busyTitle">Working...</strong>
+      <span id="busyText">׳׳—׳›׳” ׳׳×׳©׳•׳‘׳” ׳׳”׳©׳¨׳×</span>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+

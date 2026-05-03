@@ -1,0 +1,79 @@
+.builder-grid {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .builder-grid { grid-template-columns: 1fr; }
+}
+
+.builder-panel { padding: 20px; }
+.builder-side { padding: 20px; position: sticky; top: 72px; }
+
+.panel-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-700);
+}
+
+.mcq {
+  border: 1px solid var(--gray-200);
+  background: var(--gray-25);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.mcq-q { font-weight: 600; margin-bottom: 10px; font-size: 14px; }
+.mcq-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+@media (max-width: 600px) { .mcq-options { grid-template-columns: 1fr; } }
+
+.mcq-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  margin: 0;
+  transition: border-color 120ms, background 120ms;
+}
+.mcq-option:hover { border-color: var(--orange-300); }
+.mcq-option.selected {
+  background: var(--orange-50);
+  border-color: var(--orange-500);
+  color: var(--orange-700);
+}
+.mcq-option input { width: auto; accent-color: var(--orange-500); }
+
+.progress-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.progress-step {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 4px;
+  font-size: 13px;
+  color: var(--gray-500);
+}
+.progress-step.active { color: var(--orange-700); font-weight: 600; }
+.progress-step.done { color: var(--gray-900); }
+.progress-dot {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--gray-100);
+  color: var(--gray-500);
+  display: grid; place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+.progress-step.active .progress-dot {
+  background: var(--orange-500); color: #fff;
+  box-shadow: 0 0 0 4px rgba(255,122,24,0.18);
+}
+.progress-step.done .progress-dot { background: #dcfce7; color: #166534; }
