@@ -42,7 +42,7 @@ export default function GameBuilderPage() {
   const [selectedModel, setSelectedModel] = useState('');
 
   const offline = status === 'offline';
-  const generationDisabled = offline || !aiConfigured;
+  const generationDisabled = offline;
   const modelOptions = aiSupportedModels.length ? aiSupportedModels : [...FALLBACK_MODELS];
   const modelForRequest = selectedModel || aiDefaultModel || modelOptions[0];
 
@@ -82,7 +82,7 @@ export default function GameBuilderPage() {
     setActiveProgress(2);
     try {
       const res = await generationApi.generateGame({
-        prompt, answers, gameType: genre, dimension, model: modelForRequest, saveToDb: true,
+        prompt, answers, gameType: genre, dimension, model: modelForRequest,
       });
       setActiveProgress(4);
       setResult(res);
@@ -105,7 +105,6 @@ export default function GameBuilderPage() {
         gameJSON: result.gameJSON,
         editPrompt,
         model: modelForRequest,
-        saveToDb: !!result.gameId,
       });
       setResult(res);
       setEditPrompt('');
@@ -133,7 +132,7 @@ export default function GameBuilderPage() {
         <div className="error-banner">
           {offline
             ? 'Backend unreachable. Start backend on localhost:3000.'
-            : `${aiProviderLabel} key is not configured in backend .env. Generation is disabled.`}
+            : `${aiProviderLabel} key is not configured in backend .env. The backend will use its local fallback preview generator.`}
         </div>
       )}
 

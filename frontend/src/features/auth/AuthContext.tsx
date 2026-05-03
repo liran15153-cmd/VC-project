@@ -1,6 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { authApi, tokensApi } from '../../api/endpoints';
-import { ApiError, getToken, setToken } from '../../api/client';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { TokenBalance, User } from '../../types/api';
 
 interface AuthState {
@@ -18,71 +16,59 @@ interface AuthContextValue extends AuthState {
   setTokens: (tokens: TokenBalance | null) => void;
 }
 
+const DEMO_USER: User = {
+  id: 'supabase-pending-user',
+  email: 'demo@gaming-vibe.local',
+  displayName: 'Creator',
+  role: 'user',
+  subscriptionTier: 'free',
+};
+
+const DEMO_TOKENS: TokenBalance = {
+  userId: DEMO_USER.id,
+  tokensRemaining: 0,
+  tokensTotal: 0,
+  subscription: 'supabase pending',
+};
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ user: null, tokens: null, loading: true, error: null });
+  const [state, setState] = useState<AuthState>({
+    user: DEMO_USER,
+    tokens: DEMO_TOKENS,
+    loading: false,
+    error: null,
+  });
 
-  const hydrate = useCallback(async () => {
-    if (!getToken()) {
-      setState({ user: null, tokens: null, loading: false, error: null });
-      return;
-    }
-    try {
-      const me = await authApi.me();
-      setState({ user: me.user, tokens: me.tokens, loading: false, error: null });
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setToken(null);
-      }
-      setState({ user: null, tokens: null, loading: false, error: null });
-    }
+  const login = useCallback(async (email: string) => {
+    setState((s) => ({
+      ...s,
+      user: { ...DEMO_USER, email, displayName: email.split('@')[0] || DEMO_USER.displayName },
+      loading: false,
+      error: null,
+    }));
   }, []);
 
-  useEffect(() => { void hydrate(); }, [hydrate]);
-
-  const login = useCallback(async (email: string, password: string) => {
-    setState((s) => ({ ...s, loading: true, error: null }));
-    try {
-      const res = await authApi.login({ email, password });
-      setToken(res.token);
-      setState({ user: res.user, tokens: res.tokens, loading: false, error: null });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Login failed';
-      setState((s) => ({ ...s, loading: false, error: msg }));
-      throw err;
-    }
-  }, []);
-
-  const register = useCallback(async (email: string, password: string, displayName?: string) => {
-    setState((s) => ({ ...s, loading: true, error: null }));
-    try {
-      const res = await authApi.register({ email, password, displayName });
-      setToken(res.token);
-      setState({ user: res.user, tokens: res.tokens, loading: false, error: null });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Registration failed';
-      setState((s) => ({ ...s, loading: false, error: msg }));
-      throw err;
-    }
+  const register = useCallback(async (email: string, _password: string, displayName?: string) => {
+    setState((s) => ({
+      ...s,
+      user: { ...DEMO_USER, email, displayName: displayName || email.split('@')[0] || DEMO_USER.displayName },
+      loading: false,
+      error: null,
+    }));
   }, []);
 
   const logout = useCallback(async () => {
-    try { await authApi.logout(); } catch { /* ignore */ }
-    setToken(null);
-    setState({ user: null, tokens: null, loading: false, error: null });
+    setState({ user: DEMO_USER, tokens: DEMO_TOKENS, loading: false, error: null });
   }, []);
 
   const refreshTokens = useCallback(async () => {
-    if (!getToken()) return;
-    try {
-      const t = await tokensApi.get();
-      setState((s) => ({ ...s, tokens: t }));
-    } catch { /* ignore */ }
+    setState((s) => ({ ...s, tokens: s.tokens || DEMO_TOKENS }));
   }, []);
 
   const setTokens = useCallback((tokens: TokenBalance | null) => {
-    setState((s) => ({ ...s, tokens }));
+    setState((s) => ({ ...s, tokens: tokens || DEMO_TOKENS }));
   }, []);
 
   const value = useMemo<AuthContextValue>(
