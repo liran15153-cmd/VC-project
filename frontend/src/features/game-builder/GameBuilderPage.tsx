@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { generationApi, mcqApi } from '../../api/endpoints';
+import { analyticsApi, gamesApi, generationApi, mcqApi, promptHistoryApi } from '../../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
 import { useHealth } from '../health/HealthContext';
 import GamePreview from '../game-preview/GamePreview';
@@ -63,6 +63,20 @@ export default function GameBuilderPage() {
       setActiveProgress(1);
       const res = await mcqApi.generate({ prompt, gameType: genre, dimension, model: modelForRequest });
       setQuestions(res.questions);
+      await Promise.allSettled([
+        promptHistoryApi.create({
+          prompt,
+          mcqQuestions: res.questions,
+          model: res.meta?.model,
+          durationMs: res.meta?.durationMs,
+          actionType: 'mcq',
+        }),
+        analyticsApi.create({
+          eventType: 'mcq_generated',
+          generationTimeMs: res.meta?.durationMs,
+          metadata: { genre, dimension, model: res.meta?.model, fallback: res.meta?.fallback },
+        }),
+      ]);
       const defaults: Record<string, string> = {};
       res.questions.forEach((q) => { if (q.options[0]) defaults[q.id] = q.options[0].value; });
       setAnswers(defaults);
@@ -84,8 +98,38 @@ export default function GameBuilderPage() {
       const res = await generationApi.generateGame({
         prompt, answers, gameType: genre, dimension, model: modelForRequest,
       });
+      const saved = await gamesApi.create({
+        title: res.gameJSON.metadata.gameTitle,
+        description: res.gameJSON.metadata.description,
+        genre: res.gameJSON.metadata.genre,
+        dimension: res.gameJSON.metadata.dimension,
+        difficulty: res.gameJSON.metadata.difficulty,
+        gameJSON: res.gameJSON,
+        htmlString: res.htmlString,
+        prompt,
+      });
+      await Promise.allSettled([
+        promptHistoryApi.create({
+          gameId: saved.id,
+          prompt,
+          mcqAnswers: answers,
+          model: res.meta?.model,
+          durationMs: res.meta?.durationMs,
+          actionType: 'create',
+        }),
+        analyticsApi.create({
+          eventType: 'game_created',
+          gameId: saved.id,
+          generationTimeMs: res.meta?.durationMs,
+          metadata: { genre, dimension, model: res.meta?.model, fallback: res.meta?.fallback },
+        }),
+      ]);
       setActiveProgress(4);
-      setResult(res);
+      setResult({
+        ...res,
+        gameId: saved.id,
+        meta: { ...res.meta, savedGameId: saved.id },
+      });
       if (res.meta?.tokens) setTokens(res.meta.tokens);
       setActiveProgress(5);
       setStep('ready');
@@ -106,7 +150,39 @@ export default function GameBuilderPage() {
         editPrompt,
         model: modelForRequest,
       });
-      setResult(res);
+      let savedGameId = result.gameId;
+      if (savedGameId) {
+        const saved = await gamesApi.update(savedGameId, {
+          title: res.gameJSON.metadata.gameTitle,
+          description: res.gameJSON.metadata.description,
+          genre: res.gameJSON.metadata.genre,
+          dimension: res.gameJSON.metadata.dimension,
+          difficulty: res.gameJSON.metadata.difficulty,
+          gameJSON: res.gameJSON,
+          htmlString: res.htmlString,
+        });
+        savedGameId = saved.id;
+      }
+      await Promise.allSettled([
+        promptHistoryApi.create({
+          gameId: savedGameId,
+          prompt: editPrompt,
+          model: res.meta?.model,
+          durationMs: res.meta?.durationMs,
+          actionType: 'edit',
+        }),
+        analyticsApi.create({
+          eventType: 'game_edited',
+          gameId: savedGameId,
+          generationTimeMs: res.meta?.durationMs,
+          metadata: { model: res.meta?.model, fallback: res.meta?.fallback },
+        }),
+      ]);
+      setResult({
+        ...res,
+        gameId: savedGameId ?? res.gameId,
+        meta: { ...res.meta, savedGameId: savedGameId ?? undefined },
+      });
       setEditPrompt('');
       if (res.meta?.tokens) setTokens(res.meta.tokens);
     } catch (err) {

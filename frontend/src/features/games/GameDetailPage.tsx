@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { gamesApi, generationApi } from '../../api/endpoints';
+import { analyticsApi, gamesApi, generationApi, promptHistoryApi } from '../../api/endpoints';
 import { downloadBlob } from '../../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { useHealth } from '../health/HealthContext';
@@ -42,17 +42,35 @@ export default function GameDetailPage() {
     try {
       const res = await generationApi.editGame({
         gameId: game.id,
+        gameJSON: game.gameJSON,
         editPrompt,
-        saveToDb: true,
       });
       if (res.meta?.tokens) setTokens(res.meta.tokens);
-      setGame({
-        ...game,
+      const saved = await gamesApi.update(game.id, {
         title: res.gameJSON.metadata.gameTitle,
+        description: res.gameJSON.metadata.description,
+        genre: res.gameJSON.metadata.genre,
+        dimension: res.gameJSON.metadata.dimension,
+        difficulty: res.gameJSON.metadata.difficulty,
         gameJSON: res.gameJSON,
         htmlString: res.htmlString,
-        updatedAt: new Date().toISOString(),
       });
+      await Promise.allSettled([
+        promptHistoryApi.create({
+          gameId: game.id,
+          prompt: editPrompt,
+          model: res.meta?.model,
+          durationMs: res.meta?.durationMs,
+          actionType: 'edit',
+        }),
+        analyticsApi.create({
+          eventType: 'game_edited',
+          gameId: game.id,
+          generationTimeMs: res.meta?.durationMs,
+          metadata: { model: res.meta?.model, fallback: res.meta?.fallback },
+        }),
+      ]);
+      setGame(saved);
       setEditPrompt('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to apply edit');
