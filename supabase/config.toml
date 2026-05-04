@@ -1,0 +1,13 @@
+project_id = "gaming-vibe-coding"
+
+[api]
+enabled = true
+schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+enabled = true
+
+[storage]
+enabled = true

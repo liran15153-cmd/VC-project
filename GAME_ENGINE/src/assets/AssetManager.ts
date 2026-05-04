@@ -125,7 +125,7 @@ export class AssetManager {
     if (!definition.key.trim()) throw new Error('Asset key cannot be empty.');
     if (!definition.url.trim()) throw new Error(`Asset "${definition.key}" URL cannot be empty.`);
     if (!isAllowedAssetUrl(definition.url)) {
-      throw new Error(`Asset "${definition.key}" URL must be same-origin relative or data:.`);
+      throw new Error(`Asset "${definition.key}" URL must be same-origin relative, data:, or Supabase Storage.`);
     }
   }
 }
@@ -133,8 +133,25 @@ export class AssetManager {
 function isAllowedAssetUrl(url: string): boolean {
   const trimmed = url.trim();
   if (!trimmed || trimmed.startsWith('//') || trimmed.includes('..')) return false;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed.startsWith('data:');
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return isAllowedRemoteAssetUrl(trimmed);
   return true;
+}
+
+function isAllowedRemoteAssetUrl(url: string): boolean {
+  if (url.startsWith('data:')) return true;
+
+  try {
+    const parsed = new URL(url);
+    const isSupabaseCloud = parsed.protocol === 'https:' && parsed.hostname.endsWith('.supabase.co');
+    const isLocalSupabase =
+      parsed.protocol === 'http:' &&
+      (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost') &&
+      parsed.port === '54321';
+
+    return (isSupabaseCloud || isLocalSupabase) && parsed.pathname.startsWith('/storage/v1/object/');
+  } catch {
+    return false;
+  }
 }
 
 function assertNever(value: never): never {
