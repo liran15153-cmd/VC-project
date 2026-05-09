@@ -8,7 +8,7 @@ Last updated: 2026-05-09
 
 ## Immediate Priority
 
-Build one coherent creative loop:
+Stabilize the new coherent creative loop:
 
 ```txt
 prototype UI -> Questions Agent -> Game Brief -> GameDefinition -> GAME_ENGINE preview
@@ -22,13 +22,14 @@ Do this with the new OpenRouter-first backend flow:
 
 ---
 
-## Next 5 Tasks
+## Next Tasks
 
-1. Wire prototype UI to `POST /api/mcq/generate` and `POST /api/brief/generate` before generating a game.
-2. Convert accepted Game Briefs into `GAME_ENGINE` `GameDefinition` prompts.
-3. Inspect `/api/engine/generate` and `engineGameDefinitionSchema` against `GAME_ENGINE` runtime types.
-4. Build or expose a simple `GameDefinition` preview bridge.
-5. Add starter asset manifest metadata for the existing sample packs.
+1. Run an end-to-end real-AI smoke test: prompt -> MCQ -> Brief -> `/api/engine/from-brief` -> engine preview.
+2. Add the first edit loop: prompt edit -> patch existing `GameDefinition` -> refresh preview.
+3. Improve asset candidate ranking so player/coin/platform/hazard assets are selected more intentionally.
+4. Add small runtime error surfacing in the prototype UI so preview failures show actionable schema/runtime messages.
+5. Keep `/api/generate-game` as compatibility only; do not use it as the main creator path.
+6. Remove or archive `prototype/server.js` only after verifying the vanilla prototype no longer needs the old `/api/openai` compatibility server.
 
 ---
 
@@ -53,8 +54,11 @@ The next milestone is met when:
 - the accepted Game Brief generates a valid `GameDefinition`
 - the definition runs in `GAME_ENGINE`
 - the user can see/play a preview
-- at least one edit can update the preview
 - assets are referenced through a manifest, even if simple
+
+The remaining milestone gap is now the edit loop:
+
+- at least one edit can update the preview
 
 ---
 

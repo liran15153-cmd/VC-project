@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const root = __dirname;
-const port = Number(process.env.FRONTEND_PORT || 5174);
+const port = Number(process.env.FRONTEND_PORT || 5173);
 const host = process.env.FRONTEND_HOST || 'localhost';
 
 const types = {

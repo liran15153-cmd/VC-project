@@ -62,6 +62,34 @@ function showError(err) {
   console.error(err);
 }
 
+function updateTokens(meta) {
+  if (meta?.tokens) state.tokens = meta.tokens;
+}
+
+function showPreview(inspector = 'json') {
+  renderCurrentGame();
+  activateTab('preview');
+  if (inspector) activateInspector(inspector);
+}
+
+function applyLegacyGameResult(data, fallbackGameId = null) {
+  state.currentPreviewMode = 'legacy';
+  state.currentBrief = null;
+  state.currentAssetManifest = data.assetManifest || null;
+  state.currentGame = {
+    id: data.gameId || fallbackGameId,
+    title: data.gameJSON?.metadata?.gameTitle,
+    genre: data.gameJSON?.metadata?.genre,
+    dimension: data.gameJSON?.metadata?.dimension,
+    gameJSON: data.gameJSON,
+    htmlString: data.htmlString,
+    assetManifest: data.assetManifest || []
+  };
+  state.currentHTML = data.htmlString || '';
+  state.currentAssets = data.assetManifest || [];
+  updateTokens(data.meta);
+}
+
 async function request(path, { method = 'GET', body, raw = false } = {}) {
   const headers = authHeaders(body ? { 'Content-Type': 'application/json' } : {});
   const res = await fetch(`${apiBase()}${path}`, {
@@ -330,7 +358,7 @@ async function generateMCQ() {
   state.mcqQuestions.forEach((q) => {
     if (q.options?.[0]) state.mcqAnswers[q.id] = q.options[0].value;
   });
-  if (data.meta?.tokens) state.tokens = data.meta.tokens;
+  updateTokens(data.meta);
   renderAuth();
   renderMCQ();
   toast(data.meta?.fallback ? '׳ ׳•׳¦׳¨׳• ׳©׳׳׳•׳× ׳‘׳׳¦׳‘ Demo Fallback' : '׳ ׳•׳¦׳¨׳• ׳©׳׳׳•׳× MCQ');
@@ -355,11 +383,9 @@ async function generateBrief() {
   state.currentHTML = '';
   state.currentAssets = [];
   state.currentAssetManifest = null;
-  if (data.meta?.tokens) state.tokens = data.meta.tokens;
+  updateTokens(data.meta);
   renderAuth();
-  renderCurrentGame();
-  activateTab('preview');
-  activateInspector('json');
+  showPreview();
   toast(data.meta?.fallback ? 'Game Brief ׳ ׳•׳¦׳¨ ׳‘׳׳¦׳‘ fallback' : 'Game Brief ׳ ׳•׳¦׳¨');
   return data.brief;
 }
@@ -390,9 +416,9 @@ async function generateEnginePreview() {
     brief: data.brief,
     meta: data.meta
   };
-  renderCurrentGame();
-  activateTab('preview');
-  activateInspector('json');
+  updateTokens(data.meta);
+  renderAuth();
+  showPreview();
   toast(`GameDefinition ׳ ׳•׳¦׳¨ ׳¢׳ ${state.currentAssets.length} asset candidates`);
 }
 
@@ -400,25 +426,10 @@ async function generateGame() {
   const body = buildGenerationBody(true);
   setBusy(true, 'Generating game', '׳–׳” ׳™׳›׳•׳ ׳׳§׳—׳× ׳§׳¦׳× ׳–׳׳');
   const data = await request('/generate-game', { method: 'POST', body });
-  state.currentPreviewMode = 'legacy';
-  state.currentBrief = null;
-  state.currentAssetManifest = data.assetManifest || null;
-  state.currentGame = {
-    id: data.gameId,
-    title: data.gameJSON?.metadata?.gameTitle,
-    genre: data.gameJSON?.metadata?.genre,
-    dimension: data.gameJSON?.metadata?.dimension,
-    gameJSON: data.gameJSON,
-    htmlString: data.htmlString,
-    assetManifest: data.assetManifest || []
-  };
-  state.currentHTML = data.htmlString || '';
-  state.currentAssets = data.assetManifest || [];
-  if (data.meta?.tokens) state.tokens = data.meta.tokens;
+  applyLegacyGameResult(data);
   renderAuth();
-  renderCurrentGame();
   await refreshGames();
-  activateTab('preview');
+  showPreview(null);
   toast(data.meta?.fallback ? '׳”׳׳©׳—׳§ ׳ ׳•׳¦׳¨ ׳‘׳׳¦׳‘ Demo Fallback' : '׳”׳׳©׳—׳§ ׳ ׳•׳¦׳¨');
 }
 
@@ -433,25 +444,10 @@ async function editGame() {
   };
   setBusy(true, 'Editing game', '׳׳¢׳“׳›׳ ׳׳× ׳”׳׳©׳—׳§ ׳”׳§׳™׳™׳');
   const data = await request('/edit-game', { method: 'POST', body });
-  state.currentPreviewMode = 'legacy';
-  state.currentBrief = null;
-  state.currentAssetManifest = data.assetManifest || null;
-  state.currentGame = {
-    id: data.gameId || gameId,
-    title: data.gameJSON?.metadata?.gameTitle,
-    genre: data.gameJSON?.metadata?.genre,
-    dimension: data.gameJSON?.metadata?.dimension,
-    gameJSON: data.gameJSON,
-    htmlString: data.htmlString,
-    assetManifest: data.assetManifest || []
-  };
-  state.currentHTML = data.htmlString || '';
-  state.currentAssets = data.assetManifest || [];
-  if (data.meta?.tokens) state.tokens = data.meta.tokens;
+  applyLegacyGameResult(data, gameId);
   renderAuth();
-  renderCurrentGame();
   await refreshGames();
-  activateTab('preview');
+  showPreview(null);
   toast(data.meta?.fallback ? '׳”׳׳©׳—׳§ ׳¢׳•׳“׳›׳ ׳‘׳׳¦׳‘ Demo Fallback' : '׳”׳׳©׳—׳§ ׳¢׳•׳“׳›׳');
 }
 
@@ -461,8 +457,7 @@ async function fetchAssets() {
   const data = await request(`/games/${encodeURIComponent(id)}/assets`);
   state.currentAssets = data.assets || [];
   state.currentAssetManifest = data.assets || null;
-  renderCurrentGame();
-  activateInspector('assets');
+  showPreview('assets');
   toast('Assets ׳ ׳˜׳¢׳ ׳•');
 }
 

@@ -34,7 +34,7 @@ async function generateMCQOrFallback({ prompt, gameType, dimension, model }) {
       systemPrompt: MCQ_SYSTEM_PROMPT,
       prompt: buildMCQPrompt({ prompt, gameType, dimension }),
       model,
-      generationConfig: { temperature: 0.75, maxOutputTokens: 2500 },
+      generationConfig: { temperature: 0.85, maxOutputTokens: 3200 },
       cacheKey: { task: 'mcq', prompt, gameType, dimension, model },
       repairLabel: 'MCQ questions'
     });

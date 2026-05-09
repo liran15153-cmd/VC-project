@@ -16,6 +16,8 @@ const PALETTES = [
   { player: 0xfb923c, enemy: 0x7c3aed, ground: 0x1f2937, collectible: 0x22d3ee, bg: '#030712' },
 ];
 
+const MOCK_CREATED_AT = '2024-01-01T00:00:00.000Z';
+
 function createRng(seedText) {
   let seed = 2166136261;
   for (const char of String(seedText || 'fallback')) {
@@ -240,7 +242,7 @@ function generate2DGame({ prompt, answers, genre, difficulty, rng }) {
       difficulty,
       estimatedPlaytime: '5-10 minutes',
       version: '1.0',
-      createdAt: new Date().toISOString()
+      createdAt: MOCK_CREATED_AT
     },
     gameConfig: {
       width: 960,
@@ -298,7 +300,7 @@ function generate3DGame({ prompt, answers, genre, difficulty, rng }) {
       difficulty,
       estimatedPlaytime: '5-10 minutes',
       version: '1.0',
-      createdAt: new Date().toISOString()
+      createdAt: MOCK_CREATED_AT
     },
     scene: {
       backgroundColor: palette.bg,

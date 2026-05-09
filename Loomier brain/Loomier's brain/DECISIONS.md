@@ -19,6 +19,8 @@ Last updated: 2026-05-09
 | AI output | Always validate | Treat generated data as untrusted |
 | Questions/Game Brief AI | OpenRouter-first | MockAI is fallback/testing/token-saving only |
 | Game Brief scope | Planning only | Do not generate full game code in this step |
+| GameDefinition preview | `/api/engine/from-brief` is the main bridge | `/api/generate-game` stays compatibility/fallback |
+| Runtime model assets | GLB/GLTF via `entity.model.assetKey` | Visual model only; physics remains primitive colliders |
 | Branch cleanup | Accidental branch/worktrees removed | Do not restore `.claude` worktrees |
 
 ---

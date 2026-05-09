@@ -62,8 +62,12 @@ function extractJSON(text) {
   return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
 }
 
+function resolveModel(model) {
+  return config.ai.supportedModels.includes(model) ? model : config.ai.defaultModel;
+}
+
 async function generateJSON({ prompt, systemPrompt, model, generationConfig = {}, cacheKey = null, allowCache = true }) {
-  const modelName = model || config.ai.defaultModel;
+  const modelName = resolveModel(model);
   const start = Date.now();
   const ai = getClient();
   const optimizedPrompt = compressForLLM(prompt);
@@ -136,7 +140,7 @@ async function generateJSON({ prompt, systemPrompt, model, generationConfig = {}
 }
 
 async function generateText({ prompt, systemPrompt, model, generationConfig = {} }) {
-  const modelName = model || config.ai.defaultModel;
+  const modelName = resolveModel(model);
   const start = Date.now();
   const ai = getClient();
   const optimizedPrompt = compressForLLM(prompt);

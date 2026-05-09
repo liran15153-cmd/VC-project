@@ -1,12 +1,13 @@
-﻿# Gaming Vibe Coding - Frontend Test App
+# Frontend Test App
 
-Frontend ׳§׳׳™׳ ׳׳‘׳“׳™׳§׳× ׳”-backend ׳”׳—׳“׳©.
+Small local tester for the backend AI, auth, token, game, asset, and preview flows.
 
 ## Run
 
+From the repository root:
+
 ```powershell
-cd "C:\Users\lior\Desktop\CLAUDE FILES\prototype"
-npm run frontend
+npm run prototype:frontend
 ```
 
 Open:
@@ -21,23 +22,27 @@ Backend default:
 http://localhost:3000/api
 ```
 
-## What You Can Test
+GAME_ENGINE preview default:
 
-- Register / Login / Logout
-- Token balance
-- Generate MCQ questions
-- Generate game with backend AI flow
-- Preview playable HTML in iframe
-- Inspect JSON / HTML / Assets
-- Edit an existing game
-- List and load saved games
-- Download ZIP
-- Delete game
-- Admin stats and token grants
+```text
+http://localhost:5175/preview.html
+```
+
+## What This Tests
+
+- Register, login, logout, and token balance.
+- Generate MCQ questions through the backend.
+- Generate a planning Game Brief.
+- Convert an accepted brief into a `GameDefinition`.
+- Send the definition to the GAME_ENGINE preview page.
+- Run the legacy HTML generation and edit routes for compatibility checks.
+- Inspect JSON, HTML, and selected asset data.
+- Download or delete saved games when persistence is available.
 
 ## Notes
 
-- First registered user becomes admin if `AUTO_ADMIN_FIRST_USER=true`.
-- MCQ and game generation require `OPENAI_API_KEY` in `backend/.env`.
-- If a user already exists, use Login instead of Register.
-
+- The backend is OpenRouter-first. Configure `OPENROUTER_API_KEY` in `prototype/backend/.env`.
+- Temporary hosted model default: `openai/gpt-5.1`.
+- Use `AI_MODE=real` for real model calls, `AI_MODE=hybrid` for token-saving behavior, or `AI_MODE=mock` for offline tests.
+- `AI_FALLBACK_ENABLED=true` is useful for local demos, but keep it off when validating real provider behavior.
+- The legacy HTML route is compatibility-only. The main product path is `prompt -> MCQ -> Game Brief -> GameDefinition -> GAME_ENGINE preview`.

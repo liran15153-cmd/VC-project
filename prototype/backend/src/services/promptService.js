@@ -30,7 +30,7 @@ function buildGenerationPrompt({ prompt, answers = {}, gameType, dimension }) {
   return parts.join('\n');
 }
 
-function buildMCQPrompt({ prompt, gameType, dimension }) {
+function buildLegacyMCQPrompt({ prompt, gameType, dimension }) {
   const parts = [];
   parts.push(`USER GAME IDEA: ${prompt}`);
   if (gameType) parts.push(`KNOWN GAME TYPE: ${gameType}`);
@@ -41,6 +41,19 @@ function buildMCQPrompt({ prompt, gameType, dimension }) {
   parts.push('Skip questions whose answer is obvious from the prompt or trivially defaulted. If only 2 things are truly unknown, ask only 2 questions. If 9 things matter, ask 9.');
   parts.push('Avoid asking about: dimension/2D-vs-3D, mobile orientation, art-asset source, or generic difficulty UNLESS the prompt makes one of these genuinely load-bearing for THIS idea.');
   parts.push('Prefer surprising, idea-specific questions over a checklist. Each question should make the designer think "huh, good catch".');
+  parts.push('Return JSON only.');
+  return parts.join('\n');
+}
+
+function buildHybridMinimalMCQPrompt({ prompt, gameType, dimension }) {
+  const parts = [];
+  parts.push(`USER GAME IDEA: ${prompt}`);
+  if (gameType) parts.push(`KNOWN GAME TYPE: ${gameType}`);
+  if (dimension) parts.push(`KNOWN DIMENSION: ${dimension}`);
+  parts.push('');
+  parts.push('Ask sharp, idea-native questions for this specific game.');
+  parts.push('Avoid covering the whole game; choose only the decisions that matter for the first playable version.');
+  parts.push('Prefer concrete forks in gameplay, structure, or player fantasy over generic categories.');
   parts.push('Return JSON only.');
   return parts.join('\n');
 }
@@ -70,6 +83,10 @@ function buildGameBriefPrompt({ prompt, answers = {}, gameType, dimension, exist
   parts.push('');
   parts.push('Create a production-ready Game Brief for planning only.');
   parts.push('Do not generate full game code.');
+  parts.push('Always include 3-6 follow-up questions.');
+  parts.push('Do not omit followUpQuestions even if the brief feels complete.');
+  parts.push('Use MCQ answers as fixed decisions; ask only remaining first-playable decisions.');
+  parts.push('Keep runtime systems, production notes, non-goals, and visual style concise enough to pass the schema on the first response.');
   parts.push('Return JSON only.');
   return parts.join('\n');
 }
@@ -106,7 +123,7 @@ function buildGenericJSONPrompt({ task, schema, examples }) {
 module.exports = {
   buildGenerationPrompt,
   buildEditPrompt,
-  buildMCQPrompt,
+  buildMCQPrompt: buildHybridMinimalMCQPrompt,
   buildGameBriefPrompt,
   buildGenericJSONPrompt
 };

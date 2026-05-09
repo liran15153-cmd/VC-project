@@ -14,7 +14,7 @@
 const MockAI = {
 
   USE_OPENAI: true,
-  OPENAI_ENDPOINT: 'http://localhost:3000/api/openai',
+  MCQ_ENDPOINT: 'http://localhost:3000/api/mcq/generate',
   GENERATE_ENDPOINT: 'http://localhost:3000/api/generate-game',
   EDIT_ENDPOINT: 'http://localhost:3000/api/edit-game',
 
@@ -25,35 +25,13 @@ const MockAI = {
     await this.simulateThinking(500);
     if (this.USE_OPENAI) {
       try {
-        const openaiResult = await this.callOpenAIJSON(`
-Return ONLY valid JSON with no markdown.
-Task: create MCQ setup for a game idea.
-User prompt: ${prompt}
-
-Output schema:
-{
-  "gameType": "platformer|shooter|runner|breakout|rpg|explorer-fp",
-  "dimension": "2D|3D",
-  "questions": [
-    {
-      "id": "string",
-      "question": "string",
-      "options": [
-        {"label": "string", "value": "string"},
-        {"label": "string", "value": "string"}
-      ]
-    }
-  ]
-}
-
-Rules:
-- questions length must be exactly 5
-- options length must be exactly 2 for each question
-- use short, user-friendly Hebrew labels
-`);
-        if (this.isValidMCQPayload(openaiResult)) return openaiResult;
+        const gameType = MCQGenerator.detectGameType(prompt);
+        const dimension = MCQGenerator.detectDimension(prompt);
+        const data = await this.postJSON(this.MCQ_ENDPOINT, { prompt, gameType, dimension });
+        const payload = { gameType, dimension, questions: data.questions || [] };
+        if (this.isValidMCQPayload(payload)) return payload;
       } catch (error) {
-        console.warn('OpenAI MCQ failed, using local generator:', error);
+        console.warn('Backend MCQ failed, using local generator:', error);
       }
     }
     return MCQGenerator.generate(prompt);
@@ -76,26 +54,22 @@ Rules:
           ? window.SYSTEM_PROMPT_3D
           : window.SYSTEM_PROMPT_2D;
 
-        const response = await fetch(this.GENERATE_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, answers: mcqAnswers, gameType, dimension, systemPrompt })
+        const data = await this.postJSON(this.GENERATE_ENDPOINT, {
+          prompt,
+          answers: mcqAnswers,
+          gameType,
+          dimension,
+          systemPrompt
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.gameJSON) {
-            const fixed = Validator.autoFix(data.gameJSON);
-            const validation = Validator.validateGame(fixed);
-            if (validation.valid) return fixed;
-            console.warn('ג ן¸ OpenAI game JSON failed validation ג€” falling back to local builder:', validation.errors);
-          }
-        } else {
-          const err = await response.json().catch(() => ({}));
-          console.warn('ג ן¸ OpenAI game generation failed:', err.details || err.error);
+        if (data.gameJSON) {
+          const fixed = Validator.autoFix(data.gameJSON);
+          const validation = Validator.validateGame(fixed);
+          if (validation.valid) return fixed;
+          console.warn('ג ן¸ Backend game JSON failed validation ג€” falling back to local builder:', validation.errors);
         }
       } catch (error) {
-        console.warn('ג ן¸ OpenAI game generation error, using local builder:', error.message);
+        console.warn('ג ן¸ Backend game generation error, using local builder:', error.message);
       }
     }
 
@@ -139,26 +113,20 @@ Rules:
           ? window.SYSTEM_PROMPT_3D
           : window.SYSTEM_PROMPT_2D;
 
-        const response = await fetch(this.EDIT_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ gameJSON: originalGame, editPrompt, systemPrompt })
+        const data = await this.postJSON(this.EDIT_ENDPOINT, {
+          gameJSON: originalGame,
+          editPrompt,
+          systemPrompt
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.gameJSON) {
-            const fixed = Validator.autoFix(data.gameJSON);
-            const validation = Validator.validateGame(fixed);
-            if (validation.valid) return fixed;
-            console.warn('ג ן¸ OpenAI edit JSON failed validation ג€” falling back to local editor:', validation.errors);
-          }
-        } else {
-          const err = await response.json().catch(() => ({}));
-          console.warn('ג ן¸ OpenAI edit failed:', err.details || err.error);
+        if (data.gameJSON) {
+          const fixed = Validator.autoFix(data.gameJSON);
+          const validation = Validator.validateGame(fixed);
+          if (validation.valid) return fixed;
+          console.warn('ג ן¸ Backend edit JSON failed validation ג€” falling back to local editor:', validation.errors);
         }
       } catch (error) {
-        console.warn('ג ן¸ OpenAI edit error, using local editor:', error.message);
+        console.warn('ג ן¸ Backend edit error, using local editor:', error.message);
       }
     }
 
@@ -559,35 +527,19 @@ Rules:
     return new Promise(resolve => setTimeout(resolve, ms));
   },
 
-  async callOpenAIJSON(prompt) {
-    const response = await fetch(this.OPENAI_ENDPOINT, {
+  async postJSON(endpoint, body) {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify(body)
     });
 
+    const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(errText || 'OpenAI request failed');
+      throw new Error(payload.details || payload.error || 'Backend request failed');
     }
 
-    const payload = await response.json();
-    const text = payload?.text || '';
-    const jsonString = this.extractJSON(text);
-    return JSON.parse(jsonString);
-  },
-
-  extractJSON(text) {
-    if (!text) throw new Error('Empty OpenAI response');
-    const trimmed = text.trim();
-    if (trimmed.startsWith('```')) {
-      return trimmed
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/, '')
-        .trim();
-    }
-    return trimmed;
+    return payload;
   },
 
   isValidMCQPayload(payload) {
@@ -599,7 +551,8 @@ Rules:
       typeof q.id === 'string' &&
       typeof q.question === 'string' &&
       Array.isArray(q.options) &&
-      q.options.length === 2 &&
+      q.options.length >= 2 &&
+      q.options.length <= 5 &&
       q.options.every(o => o && typeof o.label === 'string' && typeof o.value === 'string')
     );
   }

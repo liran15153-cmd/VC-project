@@ -58,13 +58,13 @@ const editGameSchema = z.object({
 
 const mcqOptionSchema = z.object({
   id: z.string().min(1).max(10),
-  label: z.string().min(1).max(500),
+  label: z.string().min(1).max(140),
   value: z.string().min(1).max(200)
 });
 
 const mcqQuestionSchema = z.object({
   id: z.string().min(1).max(80),
-  question: z.string().min(1).max(500),
+  question: z.string().min(1).max(180),
   options: z.array(mcqOptionSchema).min(2).max(5)
 });
 

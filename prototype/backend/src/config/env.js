@@ -9,15 +9,7 @@ const { z } = require('zod');
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const OPENROUTER_MODELS = [
-  'openai/gpt-5',
-  'openai/gpt-5-mini',
-  'openai/gpt-4.1',
-  'anthropic/claude-sonnet-4.5',
-  'anthropic/claude-haiku-4.5',
-  'google/gemma-3-27b-it',
-  'google/gemma-3-27b-it:free',
-  'meta-llama/llama-3.3-70b-instruct',
-  'qwen/qwen3-coder:free'
+  'openai/gpt-5.1'
 ];
 
 const PLACEHOLDER_KEYS = new Set([
@@ -54,9 +46,9 @@ const envSchema = z.object({
 
   OPENROUTER_API_KEY: z.string().min(10, 'OPENROUTER_API_KEY is required and must be valid').optional(),
   OPENROUTER_MODEL: z.string().min(1).optional(),
-  OPENROUTER_DEFAULT_MODEL: z.string().min(1).default('openai/gpt-5-mini'),
+  OPENROUTER_DEFAULT_MODEL: z.string().min(1).default('openai/gpt-5.1'),
   OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
-  OPENROUTER_APP_URL: z.string().url().default('http://localhost:5174'),
+  OPENROUTER_APP_URL: z.string().url().default('http://localhost:5173'),
   OPENROUTER_APP_TITLE: z.string().min(1).default('Gaming Vibe Coding'),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),

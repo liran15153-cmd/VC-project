@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-05-09
+Last updated: 2026-05-10
 
 This file is the source of truth for current implementation status.
 
@@ -12,7 +12,7 @@ This file is the source of truth for current implementation status.
 | --- | --- | --- |
 | Prototype UI | Working | Current canonical creator surface |
 | Prototype backend | Working | AI/generation service; tests pass |
-| GAME_ENGINE | Working foundation | Tests pass; strategic runtime direction |
+| GAME_ENGINE | Preview-ready foundation | Tests pass; GameDefinition can render primitive meshes and GLB/GLTF model visuals |
 | Supabase schema | Present | Good foundation, needs production review |
 | React frontend | Not canonical | Build passes, but product/UX is not accepted |
 | Asset system | Early | Starter packs exist; full metadata/search/upload not built |
@@ -75,6 +75,51 @@ npm test
 ```
 
 Backend tests passed: 14/14. In the Codex sandbox, `npm test` required elevated execution because Node's test runner hit `spawn EPERM`.
+
+---
+
+## Recent Preview Bridge Change
+
+The first `GameDefinition` preview bridge is implemented.
+
+Current flow:
+
+```txt
+prototype UI
+  -> /api/mcq/generate
+  -> /api/brief/generate
+  -> /api/engine/from-brief
+  -> GAME_ENGINE preview iframe
+```
+
+Implemented pieces:
+
+- `POST /api/engine/from-brief` accepts an accepted Game Brief, selects local asset candidates, generates a validated `GAME_ENGINE` `GameDefinition`, and returns `{ brief, selectedAssets, assetManifest, gameDefinition, meta }`.
+- `GAME_ENGINE` supports an optional `entity.model` component for GLB/GLTF visuals through declared top-level `assets`.
+- Model visuals are separate from physics. Runtime collisions still use primitive `rigidBody` colliders.
+- The prototype tester has a `Generate GameDefinition Preview` button that sends the generated definition to the engine preview iframe.
+- `GAME_ENGINE/examples/preview.html` listens for `LOOMIER_PREVIEW_GAME_DEFINITION` over `postMessage`.
+- `public/assets/library` is served into the engine dev/build path so imported local assets can load through `/assets/library/...`.
+
+Verified after change:
+
+```bash
+npm run engine:verify
+npm run backend:check
+npm run backend:test
+npm run validate:assets
+npm run assets:summary
+```
+
+Notes:
+
+- `backend:test` and `engine:verify` may require elevated execution in the Codex Windows sandbox because Node/Vite child-process spawning can hit `EPERM`.
+- `GAME_ENGINE` dev preview now uses port `5175`; prototype frontend tester defaults to `5173`.
+- Cleanup pass on 2026-05-09 moved the vanilla prototype MCQ path off the old `/api/openai` helper and onto `prototype/backend` `/api/mcq/generate`; local generator fallback still remains.
+- `.gitignore` now treats local logs, `dist/`, `*.tsbuildinfo`, `output/`, and generated smoke-test HTML as disposable workspace artifacts.
+- Temporary internal-test model lock on 2026-05-09: hosted OpenRouter calls are constrained to `qwen/qwen3-coder:free` to avoid paid-model spend during local smoke tests.
+- Questions Agent prompt was tuned to Hybrid Minimal on 2026-05-10: 4-6 first-playable questions by default, stricter MCQ text limits, and OpenRouter generation temperature `0.85` with `maxOutputTokens: 3200`.
+- Game Brief prompt was tightened on 2026-05-10 so `followUpQuestions` stays aligned with the schema requirement of 3-6 planning questions and Brief fields stay concise enough to avoid avoidable schema repair.
 
 ---
 

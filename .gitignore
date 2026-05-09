@@ -1,2 +1,18 @@
 node_modules/
+
+# Local environment
 .env
+.env.local
+
+# Logs written by local dev servers
+*.log
+debug.log
+
+# Rebuildable outputs
+dist/
+*.tsbuildinfo
+
+# Local smoke-test artifacts
+output/
+prototype/frontend-test/generated-*.html
+public/generated-games/

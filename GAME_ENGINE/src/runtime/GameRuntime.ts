@@ -243,6 +243,8 @@ class DefinitionScene extends Scene {
     model.traverse((child) => {
       const mesh = child as THREE.Mesh;
       if (!mesh.isMesh) return;
+      mesh.geometry = mesh.geometry.clone();
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map((material) => material.clone()) : mesh.material.clone();
       mesh.castShadow = definition.castShadow;
       mesh.receiveShadow = definition.receiveShadow;
     });
@@ -251,6 +253,7 @@ class DefinitionScene extends Scene {
     engine.three.scene.add(root);
     this.addCleanup(() => {
       engine.three?.scene.remove(root);
+      disposeObject(root);
     });
     this.world.addComponent(id, new MeshComponent(root));
   }
