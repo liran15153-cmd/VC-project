@@ -109,6 +109,15 @@ export const MeshDefinitionSchema = z.discriminatedUnion('shape', [
   }),
 ]);
 
+export const ModelDefinitionSchema = z.object({
+  assetKey: z.string().min(1),
+  positionOffset: Vec3Schema.default({ x: 0, y: 0, z: 0 }),
+  rotationOffset: Vec3Schema.default({ x: 0, y: 0, z: 0 }),
+  scale: Vec3Schema.default({ x: 1, y: 1, z: 1 }),
+  castShadow: z.boolean().default(false),
+  receiveShadow: z.boolean().default(false),
+});
+
 const ColliderOptionsSchema = z.object({
   density: z.number().positive().optional(),
   friction: z.number().min(0).optional(),
@@ -182,6 +191,7 @@ export const EntityDefinitionSchema = z.object({
   name: z.string().optional(),
   transform: TransformDefinitionSchema.default(DEFAULT_TRANSFORM),
   mesh: MeshDefinitionSchema.optional(),
+  model: ModelDefinitionSchema.optional(),
   rigidBody: RigidBodyDefinitionSchema.optional(),
   sprite: SpriteDefinitionSchema.optional(),
   cameraTarget: CameraTargetDefinitionSchema.optional(),
@@ -410,6 +420,7 @@ export type GameDefinition = z.infer<typeof GameDefinitionSchema>;
 export type SceneDefinition = z.infer<typeof SceneDefinitionSchema>;
 export type EntityDefinition = z.infer<typeof EntityDefinitionSchema>;
 export type MeshDefinition = z.infer<typeof MeshDefinitionSchema>;
+export type ModelDefinition = z.infer<typeof ModelDefinitionSchema>;
 export type RigidBodyDefinition = z.infer<typeof RigidBodyDefinitionSchema>;
 export type SpriteDefinition = z.infer<typeof SpriteDefinitionSchema>;
 export type BehaviorDefinition = z.infer<typeof BehaviorDefinitionSchema>;
@@ -434,6 +445,7 @@ export function parseGameDefinition(input: unknown): GameDefinition {
   }
 
   validateSceneReferences({ key: '__global__', behaviors: definition.behaviors }, sceneKeys);
+  validateModelAssetReferences(definition);
 
   return definition;
 }
@@ -477,6 +489,20 @@ function validateSceneReferences(scene: { key: string; behaviors: BehaviorDefini
       if (type === 'switchScene' && targetScene && !sceneKeys.has(targetScene)) {
         throw new Error(`Behavior in scene "${scene.key}" switches to missing scene "${targetScene}".`);
       }
+    }
+  }
+}
+
+function validateModelAssetReferences(definition: GameDefinition): void {
+  const assetKeys = new Set(definition.assets.map((asset) => asset.key));
+  const entities: EntityDefinition[] = [
+    ...definition.scenes.flatMap((scene) => scene.entities),
+    ...Object.entries(definition.prefabs).map(([key, prefab]) => ({ ...prefab, key })),
+  ];
+
+  for (const entity of entities) {
+    if (entity.model && !assetKeys.has(entity.model.assetKey)) {
+      throw new Error(`Entity "${entity.key}" references missing model asset "${entity.model.assetKey}".`);
     }
   }
 }

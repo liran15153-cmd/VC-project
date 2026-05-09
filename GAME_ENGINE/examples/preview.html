@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>LOOMIER GameDefinition Preview</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0b0f16;
+        color: #eef2ff;
+        font-family: Arial, sans-serif;
+      }
+
+      #game-root {
+        position: fixed;
+        inset: 0;
+      }
+
+      #status {
+        position: fixed;
+        left: 14px;
+        top: 14px;
+        z-index: 10;
+        max-width: min(520px, calc(100vw - 28px));
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+        background: rgba(9, 13, 20, 0.82);
+        padding: 10px 12px;
+        font-size: 13px;
+        line-height: 1.45;
+        pointer-events: none;
+      }
+
+      #status.ready {
+        color: #99f6e4;
+      }
+
+      #status.error {
+        color: #fecaca;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-root"></div>
+    <div id="status">Waiting for GameDefinition...</div>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>

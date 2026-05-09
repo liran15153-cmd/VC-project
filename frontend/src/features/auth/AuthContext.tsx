@@ -1,6 +1,4 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { User as SupabaseUser } from '@supabase/supabase-js';
-import { requireSupabaseConfigured, supabase, supabaseConfigured } from '../../lib/supabase';
 import type { TokenBalance, User } from '../../types/api';
 
 interface AuthState {
@@ -20,151 +18,57 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function fallbackUser(authUser: SupabaseUser): User {
-  const displayName =
-    typeof authUser.user_metadata?.display_name === 'string'
-      ? authUser.user_metadata.display_name
-      : authUser.email?.split('@')[0];
-
-  return {
-    id: authUser.id,
-    email: authUser.email || '',
-    displayName,
-    role: 'user',
-    subscriptionTier: 'free',
-    createdAt: authUser.created_at,
-  };
-}
-
-async function loadProfile(authUser: SupabaseUser): Promise<User> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id,email,display_name,role,subscription_tier,created_at')
-    .eq('id', authUser.id)
-    .maybeSingle();
-
-  if (error || !data) return fallbackUser(authUser);
-
-  return {
-    id: data.id,
-    email: data.email || authUser.email || '',
-    displayName: data.display_name || authUser.email?.split('@')[0],
-    role: data.role === 'admin' ? 'admin' : 'user',
-    subscriptionTier: data.subscription_tier || 'free',
-    createdAt: data.created_at,
-  };
-}
-
-async function loadTokenBalance(): Promise<TokenBalance | null> {
-  const { data, error } = await supabase.rpc('get_token_balance');
-  if (error) throw error;
-  const row = Array.isArray(data) ? data[0] : null;
-  if (!row) return null;
-
-  return {
-    userId: row.user_id,
-    tokensRemaining: row.tokens_remaining ?? 0,
-    tokensTotal: row.tokens_total ?? 0,
-    subscription: row.subscription ?? 'free',
-  };
-}
+const LOCAL_AUTH_BYPASS = true;
+const LOCAL_USER: User = {
+  id: 'local-dev-user',
+  email: 'creator@loomier.local',
+  displayName: 'Local Creator',
+  role: 'user',
+  subscriptionTier: 'dev'
+};
+const LOCAL_TOKENS: TokenBalance = {
+  userId: LOCAL_USER.id,
+  tokensRemaining: 999,
+  tokensTotal: 999,
+  subscription: 'dev'
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    tokens: null,
-    loading: true,
-    error: null,
-  });
+  const [state, setState] = useState<AuthState>({ user: null, tokens: null, loading: true, error: null });
 
-  const loadAccount = useCallback(async (authUser: SupabaseUser | null) => {
-    if (!authUser) {
-      setState({ user: null, tokens: null, loading: false, error: null });
-      return;
-    }
-
-    setState((s) => ({ ...s, loading: true, error: null }));
-    try {
-      const [user, tokens] = await Promise.all([loadProfile(authUser), loadTokenBalance()]);
-      setState({ user, tokens, loading: false, error: null });
-    } catch (err) {
-      setState({
-        user: fallbackUser(authUser),
-        tokens: null,
-        loading: false,
-        error: err instanceof Error ? err.message : 'Failed to load account',
-      });
+  const hydrate = useCallback(async () => {
+    if (LOCAL_AUTH_BYPASS) {
+      setState({ user: LOCAL_USER, tokens: LOCAL_TOKENS, loading: false, error: null });
     }
   }, []);
 
-  useEffect(() => {
-    if (!supabaseConfigured) {
-      setState({
-        user: null,
-        tokens: null,
-        loading: false,
-        error: 'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in frontend .env.',
-      });
-      return;
-    }
-
-    let alive = true;
-    supabase.auth.getUser().then(({ data }) => {
-      if (alive) void loadAccount(data.user);
-    }).catch((err) => {
-      if (alive) setState({ user: null, tokens: null, loading: false, error: err instanceof Error ? err.message : 'Auth failed' });
-    });
-
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      void loadAccount(session?.user ?? null);
-    });
-
-    return () => {
-      alive = false;
-      subscription.subscription.unsubscribe();
-    };
-  }, [loadAccount]);
+  useEffect(() => { void hydrate(); }, [hydrate]);
 
   const login = useCallback(async (email: string, password: string) => {
-    requireSupabaseConfigured();
     setState((s) => ({ ...s, loading: true, error: null }));
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setState((s) => ({ ...s, loading: false, error: error.message }));
-      throw error;
-    }
-    await loadAccount(data.user);
-  }, [loadAccount]);
+    void email;
+    void password;
+    setState({ user: LOCAL_USER, tokens: LOCAL_TOKENS, loading: false, error: null });
+  }, []);
 
   const register = useCallback(async (email: string, password: string, displayName?: string) => {
-    requireSupabaseConfigured();
     setState((s) => ({ ...s, loading: true, error: null }));
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { display_name: displayName || email.split('@')[0] } },
+    void email;
+    void password;
+    setState({
+      user: { ...LOCAL_USER, displayName: displayName || LOCAL_USER.displayName },
+      tokens: LOCAL_TOKENS,
+      loading: false,
+      error: null
     });
-    if (error) {
-      setState((s) => ({ ...s, loading: false, error: error.message }));
-      throw error;
-    }
-    await loadAccount(data.user);
-  }, [loadAccount]);
+  }, []);
 
   const logout = useCallback(async () => {
-    requireSupabaseConfigured();
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    setState({ user: null, tokens: null, loading: false, error: null });
+    setState({ user: LOCAL_USER, tokens: LOCAL_TOKENS, loading: false, error: null });
   }, []);
 
   const refreshTokens = useCallback(async () => {
-    try {
-      const tokens = await loadTokenBalance();
-      setState((s) => ({ ...s, tokens, error: null }));
-    } catch (err) {
-      setState((s) => ({ ...s, error: err instanceof Error ? err.message : 'Failed to refresh tokens' }));
-    }
+    setState((s) => ({ ...s, tokens: s.tokens || LOCAL_TOKENS }));
   }, []);
 
   const setTokens = useCallback((tokens: TokenBalance | null) => {

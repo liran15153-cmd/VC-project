@@ -112,6 +112,15 @@ const meshDefinitionSchema = z.discriminatedUnion('shape', [
   })
 ]);
 
+const modelDefinitionSchema = z.object({
+  assetKey: z.string().min(1),
+  positionOffset: vec3Schema.default({ x: 0, y: 0, z: 0 }),
+  rotationOffset: vec3Schema.default({ x: 0, y: 0, z: 0 }),
+  scale: vec3Schema.default({ x: 1, y: 1, z: 1 }),
+  castShadow: z.boolean().default(false),
+  receiveShadow: z.boolean().default(false)
+});
+
 const colliderOptionsSchema = z.object({
   density: z.number().positive().optional(),
   friction: z.number().min(0).optional(),
@@ -185,6 +194,7 @@ const entityDefinitionSchema = z.object({
   name: z.string().optional(),
   transform: transformDefinitionSchema.default(defaultTransform),
   mesh: meshDefinitionSchema.optional(),
+  model: modelDefinitionSchema.optional(),
   rigidBody: rigidBodyDefinitionSchema.optional(),
   sprite: spriteDefinitionSchema.optional(),
   cameraTarget: cameraTargetDefinitionSchema.optional(),
@@ -422,6 +432,7 @@ function parseEngineGameDefinition(input) {
   }
 
   validateSceneReferences({ key: '__global__', behaviors: definition.behaviors }, sceneKeys);
+  validateModelAssetReferences(definition);
   return definition;
 }
 
@@ -471,6 +482,20 @@ function validateSceneReferences(scene, sceneKeys) {
       if (type === 'switchScene' && targetScene && !sceneKeys.has(targetScene)) {
         throw new Error(`Behavior in scene "${scene.key}" switches to missing scene "${targetScene}".`);
       }
+    }
+  }
+}
+
+function validateModelAssetReferences(definition) {
+  const assetKeys = new Set(definition.assets.map((asset) => asset.key));
+  const entities = [
+    ...definition.scenes.flatMap((scene) => scene.entities),
+    ...Object.entries(definition.prefabs).map(([key, prefab]) => ({ ...prefab, key }))
+  ];
+
+  for (const entity of entities) {
+    if (entity.model && !assetKeys.has(entity.model.assetKey)) {
+      throw new Error(`Entity "${entity.key}" references missing model asset "${entity.model.assetKey}".`);
     }
   }
 }

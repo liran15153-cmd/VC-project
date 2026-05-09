@@ -1,24 +1,24 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { analyticsApi, gamesApi, generationApi, mcqApi, promptHistoryApi } from '../../api/endpoints';
+import { briefApi, generationApi, mcqApi } from '../../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
 import { useHealth } from '../health/HealthContext';
 import GamePreview from '../game-preview/GamePreview';
 import type {
-  Dimension, GenerateGameResponse, Genre, MCQQuestion,
+  Dimension, GameBrief, GameBriefGenerateResponse, GenerateGameResponse, Genre, MCQGenerateResponse, MCQQuestion,
 } from '../../types/api';
 import { GENRES_2D, GENRES_3D } from '../../types/api';
 import './GameBuilderPage.css';
 
-type Step = 'idle' | 'generating-mcq' | 'awaiting-answers' | 'generating-game' | 'ready' | 'error';
+type Step = 'idle' | 'generating-mcq' | 'awaiting-answers' | 'generating-brief' | 'generating-game' | 'ready' | 'error';
 
 const PROGRESS_STEPS = [
   'Checking backend',
   'Generating questions',
+  'Creating game brief',
   'Building game JSON',
-  'Validating',
   'Running preview',
-  'Saved',
+  'Ready',
 ] as const;
 
 const FALLBACK_MODELS = ['openai/gpt-5', 'openai/gpt-5-mini', 'anthropic/claude-sonnet-4.5', 'google/gemma-3-27b-it'] as const;
@@ -33,6 +33,9 @@ export default function GameBuilderPage() {
   const [genre, setGenre] = useState<Genre>('platformer');
   const [questions, setQuestions] = useState<MCQQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [mcqMeta, setMcqMeta] = useState<MCQGenerateResponse['meta'] | null>(null);
+  const [brief, setBrief] = useState<GameBrief | null>(null);
+  const [briefMeta, setBriefMeta] = useState<GameBriefGenerateResponse['meta'] | null>(null);
   const [result, setResult] = useState<GenerateGameResponse | null>(null);
   const [step, setStep] = useState<Step>('idle');
   const [activeProgress, setActiveProgress] = useState<number>(-1);
@@ -42,7 +45,7 @@ export default function GameBuilderPage() {
   const [selectedModel, setSelectedModel] = useState('');
 
   const offline = status === 'offline';
-  const generationDisabled = offline;
+  const generationDisabled = offline || !aiConfigured;
   const modelOptions = aiSupportedModels.length ? aiSupportedModels : [...FALLBACK_MODELS];
   const modelForRequest = selectedModel || aiDefaultModel || modelOptions[0];
 
@@ -56,27 +59,17 @@ export default function GameBuilderPage() {
     setError(null);
     setQuestions([]);
     setAnswers({});
+    setMcqMeta(null);
+    setBrief(null);
+    setBriefMeta(null);
     setResult(null);
     setStep('generating-mcq');
     setActiveProgress(0);
     try {
       setActiveProgress(1);
       const res = await mcqApi.generate({ prompt, gameType: genre, dimension, model: modelForRequest });
+      setMcqMeta(res.meta || null);
       setQuestions(res.questions);
-      await Promise.allSettled([
-        promptHistoryApi.create({
-          prompt,
-          mcqQuestions: res.questions,
-          model: res.meta?.model,
-          durationMs: res.meta?.durationMs,
-          actionType: 'mcq',
-        }),
-        analyticsApi.create({
-          eventType: 'mcq_generated',
-          generationTimeMs: res.meta?.durationMs,
-          metadata: { genre, dimension, model: res.meta?.model, fallback: res.meta?.fallback },
-        }),
-      ]);
       const defaults: Record<string, string> = {};
       res.questions.forEach((q) => { if (q.options[0]) defaults[q.id] = q.options[0].value; });
       setAnswers(defaults);
@@ -91,45 +84,29 @@ export default function GameBuilderPage() {
 
   const generateGame = async () => {
     setError(null);
+    setBrief(null);
+    setBriefMeta(null);
     setResult(null);
-    setStep('generating-game');
+    setStep('generating-brief');
     setActiveProgress(2);
     try {
-      const res = await generationApi.generateGame({
-        prompt, answers, gameType: genre, dimension, model: modelForRequest,
-      });
-      const saved = await gamesApi.create({
-        title: res.gameJSON.metadata.gameTitle,
-        description: res.gameJSON.metadata.description,
-        genre: res.gameJSON.metadata.genre,
-        dimension: res.gameJSON.metadata.dimension,
-        difficulty: res.gameJSON.metadata.difficulty,
-        gameJSON: res.gameJSON,
-        htmlString: res.htmlString,
+      const briefRes = await briefApi.generate({
         prompt,
+        answers,
+        gameType: genre,
+        dimension,
+        model: modelForRequest,
       });
-      await Promise.allSettled([
-        promptHistoryApi.create({
-          gameId: saved.id,
-          prompt,
-          mcqAnswers: answers,
-          model: res.meta?.model,
-          durationMs: res.meta?.durationMs,
-          actionType: 'create',
-        }),
-        analyticsApi.create({
-          eventType: 'game_created',
-          gameId: saved.id,
-          generationTimeMs: res.meta?.durationMs,
-          metadata: { genre, dimension, model: res.meta?.model, fallback: res.meta?.fallback },
-        }),
-      ]);
+      setBrief(briefRes.brief);
+      setBriefMeta(briefRes.meta || null);
+
+      setStep('generating-game');
+      setActiveProgress(3);
+      const res = await generationApi.generateGame({
+        prompt, answers, gameType: genre, dimension, model: modelForRequest, saveToDb: true,
+      });
       setActiveProgress(4);
-      setResult({
-        ...res,
-        gameId: saved.id,
-        meta: { ...res.meta, savedGameId: saved.id },
-      });
+      setResult(res);
       if (res.meta?.tokens) setTokens(res.meta.tokens);
       setActiveProgress(5);
       setStep('ready');
@@ -149,40 +126,9 @@ export default function GameBuilderPage() {
         gameJSON: result.gameJSON,
         editPrompt,
         model: modelForRequest,
+        saveToDb: !!result.gameId,
       });
-      let savedGameId = result.gameId;
-      if (savedGameId) {
-        const saved = await gamesApi.update(savedGameId, {
-          title: res.gameJSON.metadata.gameTitle,
-          description: res.gameJSON.metadata.description,
-          genre: res.gameJSON.metadata.genre,
-          dimension: res.gameJSON.metadata.dimension,
-          difficulty: res.gameJSON.metadata.difficulty,
-          gameJSON: res.gameJSON,
-          htmlString: res.htmlString,
-        });
-        savedGameId = saved.id;
-      }
-      await Promise.allSettled([
-        promptHistoryApi.create({
-          gameId: savedGameId,
-          prompt: editPrompt,
-          model: res.meta?.model,
-          durationMs: res.meta?.durationMs,
-          actionType: 'edit',
-        }),
-        analyticsApi.create({
-          eventType: 'game_edited',
-          gameId: savedGameId,
-          generationTimeMs: res.meta?.durationMs,
-          metadata: { model: res.meta?.model, fallback: res.meta?.fallback },
-        }),
-      ]);
-      setResult({
-        ...res,
-        gameId: savedGameId ?? res.gameId,
-        meta: { ...res.meta, savedGameId: savedGameId ?? undefined },
-      });
+      setResult(res);
       setEditPrompt('');
       if (res.meta?.tokens) setTokens(res.meta.tokens);
     } catch (err) {
@@ -193,7 +139,7 @@ export default function GameBuilderPage() {
   };
 
   const reset = () => {
-    setQuestions([]); setAnswers({}); setResult(null);
+    setQuestions([]); setAnswers({}); setMcqMeta(null); setBrief(null); setBriefMeta(null); setResult(null);
     setStep('idle'); setActiveProgress(-1); setError(null);
   };
 
@@ -208,7 +154,7 @@ export default function GameBuilderPage() {
         <div className="error-banner">
           {offline
             ? 'Backend unreachable. Start backend on localhost:3000.'
-            : `${aiProviderLabel} key is not configured in backend .env. The backend will use its local fallback preview generator.`}
+            : `${aiProviderLabel} key is not configured in backend .env. Generation is disabled.`}
         </div>
       )}
 
@@ -258,7 +204,7 @@ export default function GameBuilderPage() {
               onClick={generateQuestions}
             >
               {step === 'generating-mcq' && <span className="spinner" />}
-              {questions.length > 0 ? 'Regenerate questions' : 'Generate questions'}
+                {questions.length > 0 ? 'Regenerate questions' : 'Generate questions'}
             </button>
             {(questions.length > 0 || result) && (
               <button className="btn ghost" onClick={reset}>Start over</button>
@@ -268,6 +214,9 @@ export default function GameBuilderPage() {
           {questions.length > 0 && (
             <>
               <h2 className="panel-title" style={{ marginTop: 24 }}>2. Quick questions</h2>
+              {mcqMeta && (
+                <AgentMeta label="Questions Agent" meta={mcqMeta} />
+              )}
               <div className="col" style={{ gap: 14 }}>
                 {questions.map((q) => (
                   <div key={q.id} className="mcq">
@@ -296,14 +245,32 @@ export default function GameBuilderPage() {
               <div className="row" style={{ marginTop: 16 }}>
                 <button
                   className="btn"
-                  disabled={step === 'generating-game' || generationDisabled}
+                  disabled={step === 'generating-brief' || step === 'generating-game' || generationDisabled}
                   onClick={generateGame}
                 >
-                  {step === 'generating-game' && <span className="spinner" />}
+                  {(step === 'generating-brief' || step === 'generating-game') && <span className="spinner" />}
                   Generate game
                 </button>
               </div>
             </>
+          )}
+
+          {brief && (
+            <div className="brief-panel">
+              <div className="row between" style={{ gap: 8, alignItems: 'flex-start' }}>
+                <div>
+                  <h2 className="panel-title" style={{ marginBottom: 4 }}>3. Game brief</h2>
+                  <div className="brief-title">{brief.title}</div>
+                </div>
+                {briefMeta && <AgentMeta label="Brief Agent" meta={briefMeta} compact />}
+              </div>
+              <p className="brief-pitch">{brief.oneSentencePitch}</p>
+              <div className="brief-grid">
+                <BriefList title="Core loop" items={brief.coreLoop} />
+                <BriefList title="Runtime systems" items={brief.runtimePlan.systems} />
+                <BriefList title="Assets to generate" items={brief.assetPlan.assetsToGenerate} />
+              </div>
+            </div>
           )}
         </section>
 
@@ -374,6 +341,54 @@ export default function GameBuilderPage() {
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+function AgentMeta({ label, meta, compact = false }: {
+  label: string;
+  meta: {
+    provider?: string;
+    mode?: string;
+    model?: string;
+    durationMs?: number;
+    fallback?: boolean;
+    schemaRepair?: boolean;
+    cached?: boolean;
+    tokenOptimized?: boolean;
+  };
+  compact?: boolean;
+}) {
+  const details = [
+    meta.provider,
+    meta.mode,
+    meta.model,
+    typeof meta.durationMs === 'number' ? `${(meta.durationMs / 1000).toFixed(1)}s` : null,
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <div className={`agent-meta${compact ? ' compact' : ''}`}>
+      <div className="agent-meta-label">{label}</div>
+      <div className="agent-meta-line">{details || 'No metadata returned'}</div>
+      <div className="agent-meta-badges">
+        {meta.fallback && <span className="badge amber">fallback</span>}
+        {meta.schemaRepair && <span className="badge">json repaired</span>}
+        {meta.cached && <span className="badge">cached</span>}
+        {meta.tokenOptimized && <span className="badge">token saved</span>}
+      </div>
+    </div>
+  );
+}
+
+function BriefList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div>
+      <div className="brief-list-title">{title}</div>
+      <ul className="brief-list">
+        {items.slice(0, 5).map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
     </div>
   );
 }

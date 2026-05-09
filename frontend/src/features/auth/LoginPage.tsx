@@ -3,13 +3,12 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useHealth } from '../health/HealthContext';
 import { setApiBase as persistApiBase } from '../../api/client';
-import { supabaseConfigured } from '../../lib/supabase';
 import './LoginPage.css';
 
 type Mode = 'login' | 'register';
 
 export default function LoginPage() {
-  const { user, login, register, error: authError } = useAuth();
+  const { user, login, register } = useAuth();
   const { status, apiBase, refresh } = useHealth();
   const location = useLocation();
   const [mode, setMode] = useState<Mode>('login');
@@ -98,20 +97,13 @@ export default function LoginPage() {
             )}
 
             {error && <div className="error-banner">{error}</div>}
-            {!supabaseConfigured && (
-              <div className="error-banner">
-                Supabase is not configured. Add <span className="kbd">VITE_SUPABASE_URL</span> and{' '}
-                <span className="kbd">VITE_SUPABASE_PUBLISHABLE_KEY</span> to frontend <span className="kbd">.env</span>.
-              </div>
-            )}
-            {authError && <div className="error-banner">{authError}</div>}
             {status === 'offline' && (
               <div className="error-banner">
-                AI backend unreachable at <span className="kbd">{apiBase}</span>. You can still sign in, but generation needs backend on <span className="kbd">localhost:3000</span>.
+                Backend unreachable at <span className="kbd">{apiBase}</span>. Start backend on <span className="kbd">localhost:3000</span>.
               </div>
             )}
 
-            <button className="btn" disabled={submitting || !supabaseConfigured}>
+            <button className="btn" disabled={submitting || status === 'offline'}>
               {submitting && <span className="spinner" />}
               {mode === 'login' ? 'Sign in' : 'Create account'}
             </button>

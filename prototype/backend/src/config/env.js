@@ -8,14 +8,6 @@ const { z } = require('zod');
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-const OPENAI_MODELS = [
-  'gpt-5',
-  'gpt-5.5',
-  'gpt-5.3-codex',
-  'gpt-5.2',
-  'gpt-4.1'
-];
-
 const OPENROUTER_MODELS = [
   'openai/gpt-5',
   'openai/gpt-5-mini',
@@ -30,30 +22,38 @@ const OPENROUTER_MODELS = [
 
 const PLACEHOLDER_KEYS = new Set([
   '',
-  'replace-with-your-openai-api-key',
   'replace-with-your-openrouter-api-key',
-  'your-openai-api-key',
   'your-openrouter-api-key'
 ]);
+
+const envBoolean = z.preprocess((value) => {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off', ''].includes(normalized)) return false;
+  }
+  return value;
+}, z.boolean());
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   HOST: z.string().default('localhost'),
-  TRUST_PROXY: z.coerce.boolean().default(false),
+  TRUST_PROXY: envBoolean.default(false),
 
   CORS_ORIGINS: z.string().default('*'),
 
-  AI_PROVIDER: z.enum(['openai', 'openrouter']).optional(),
-  AI_FALLBACK_ENABLED: z.coerce.boolean().default(true),
+  AI_MODE: z.enum(['mock', 'real', 'hybrid']).default('real'),
+  AI_FALLBACK_ENABLED: envBoolean.default(true),
   AI_MAX_JSON_OUTPUT_TOKENS: z.coerce.number().int().min(512).max(60000).default(12000),
   AI_MAX_TEXT_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(60000).default(4000),
   AI_HARD_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(512).max(60000).default(20000),
-
-  OPENAI_API_KEY: z.string().min(10, 'OPENAI_API_KEY is required and must be valid').optional(),
-  OPENAI_DEFAULT_MODEL: z.string().min(1).default('gpt-5'),
+  AI_MAX_INPUT_CHARS: z.coerce.number().int().min(1000).max(50000).default(8000),
+  AI_CACHE_TTL_MS: z.coerce.number().int().min(0).default(300000),
+  AI_GENERATION_TIMEOUT_MS: z.coerce.number().int().min(5000).max(180000).default(90000),
 
   OPENROUTER_API_KEY: z.string().min(10, 'OPENROUTER_API_KEY is required and must be valid').optional(),
+  OPENROUTER_MODEL: z.string().min(1).optional(),
   OPENROUTER_DEFAULT_MODEL: z.string().min(1).default('openai/gpt-5-mini'),
   OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
   OPENROUTER_APP_URL: z.string().url().default('http://localhost:5174'),
@@ -98,20 +98,18 @@ function normalizeApiKey(value) {
   return PLACEHOLDER_KEYS.has(trimmed) ? undefined : trimmed;
 }
 
-const openaiApiKey = normalizeApiKey(parsed.OPENAI_API_KEY);
 const openrouterApiKey = normalizeApiKey(parsed.OPENROUTER_API_KEY);
-const selectedProvider = parsed.AI_PROVIDER || (openrouterApiKey ? 'openrouter' : 'openai');
-const selectedApiKey = selectedProvider === 'openrouter' ? openrouterApiKey : openaiApiKey;
-const selectedDefaultModel = selectedProvider === 'openrouter'
-  ? parsed.OPENROUTER_DEFAULT_MODEL
-  : parsed.OPENAI_DEFAULT_MODEL;
-const selectedSupportedModels = selectedProvider === 'openrouter' ? OPENROUTER_MODELS : OPENAI_MODELS;
-const selectedLabel = selectedProvider === 'openrouter' ? 'OpenRouter' : 'OpenAI';
+const selectedProvider = 'openrouter';
+const selectedApiKey = openrouterApiKey;
+const selectedDefaultModel = parsed.OPENROUTER_MODEL || parsed.OPENROUTER_DEFAULT_MODEL;
+const selectedSupportedModels = OPENROUTER_MODELS.includes(selectedDefaultModel)
+  ? OPENROUTER_MODELS
+  : [selectedDefaultModel, ...OPENROUTER_MODELS];
+const selectedLabel = 'OpenRouter';
 
-if (!selectedApiKey) {
-  const keyName = selectedProvider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'OPENAI_API_KEY';
-  console.warn(`\n${keyName} is not set - AI endpoints will return 503`);
-  console.warn(`Add ${keyName} to prototype/backend/.env and restart the backend\n`);
+if (parsed.AI_MODE !== 'mock' && !selectedApiKey) {
+  console.warn('\nOPENROUTER_API_KEY is not set - real AI endpoints will return 503 or use fallback where allowed');
+  console.warn('Add OPENROUTER_API_KEY to prototype/backend/.env and restart the backend\n');
 }
 
 module.exports = {
@@ -124,32 +122,31 @@ module.exports = {
   trustProxy: parsed.TRUST_PROXY,
   cors: { origins: corsOrigins },
   ai: {
+    mode: parsed.AI_MODE,
     provider: selectedProvider,
     providerLabel: selectedLabel,
     apiKey: selectedApiKey,
-    baseURL: selectedProvider === 'openrouter' ? parsed.OPENROUTER_BASE_URL : undefined,
+    baseURL: parsed.OPENROUTER_BASE_URL,
     defaultModel: selectedDefaultModel,
     supportedModels: selectedSupportedModels,
-    enabled: !!selectedApiKey,
+    enabled: parsed.AI_MODE === 'mock' || !!selectedApiKey,
+    realEnabled: !!selectedApiKey,
     fallbackEnabled: parsed.AI_FALLBACK_ENABLED,
     maxJsonOutputTokens: parsed.AI_MAX_JSON_OUTPUT_TOKENS,
     maxTextOutputTokens: parsed.AI_MAX_TEXT_OUTPUT_TOKENS,
     hardMaxOutputTokens: parsed.AI_HARD_MAX_OUTPUT_TOKENS,
+    maxInputChars: parsed.AI_MAX_INPUT_CHARS,
+    cacheTtlMs: parsed.AI_CACHE_TTL_MS,
+    generationTimeoutMs: parsed.AI_GENERATION_TIMEOUT_MS,
     openrouter: {
       appUrl: parsed.OPENROUTER_APP_URL,
       appTitle: parsed.OPENROUTER_APP_TITLE
     }
   },
-  openai: {
-    apiKey: openaiApiKey,
-    defaultModel: parsed.OPENAI_DEFAULT_MODEL,
-    supportedModels: OPENAI_MODELS,
-    enabled: !!openaiApiKey,
-    fallbackEnabled: parsed.AI_FALLBACK_ENABLED
-  },
+  openai: { enabled: false, supportedModels: [] },
   openrouter: {
     apiKey: openrouterApiKey,
-    defaultModel: parsed.OPENROUTER_DEFAULT_MODEL,
+    defaultModel: selectedDefaultModel,
     baseURL: parsed.OPENROUTER_BASE_URL,
     supportedModels: OPENROUTER_MODELS,
     enabled: !!openrouterApiKey,
@@ -164,6 +161,5 @@ module.exports = {
   },
   bodyLimit: parsed.BODY_LIMIT,
   SUPPORTED_MODELS: selectedSupportedModels,
-  OPENAI_MODELS,
   OPENROUTER_MODELS
 };

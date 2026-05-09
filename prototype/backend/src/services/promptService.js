@@ -36,7 +36,40 @@ function buildMCQPrompt({ prompt, gameType, dimension }) {
   if (gameType) parts.push(`KNOWN GAME TYPE: ${gameType}`);
   if (dimension) parts.push(`KNOWN DIMENSION: ${dimension}`);
   parts.push('');
-  parts.push('Generate the best clarifying MCQ questions for this idea.');
+  parts.push('Analyze THIS specific game idea. Identify what is genuinely ambiguous, unknowable, or design-critical for THIS idea — not generic categories.');
+  parts.push('A roguelike, a rhythm game, a horror game, a puzzle, and a racing game each have different unknowns. Tailor your questions to the unique nature of the idea above.');
+  parts.push('Skip questions whose answer is obvious from the prompt or trivially defaulted. If only 2 things are truly unknown, ask only 2 questions. If 9 things matter, ask 9.');
+  parts.push('Avoid asking about: dimension/2D-vs-3D, mobile orientation, art-asset source, or generic difficulty UNLESS the prompt makes one of these genuinely load-bearing for THIS idea.');
+  parts.push('Prefer surprising, idea-specific questions over a checklist. Each question should make the designer think "huh, good catch".');
+  parts.push('Return JSON only.');
+  return parts.join('\n');
+}
+
+function buildGameBriefPrompt({ prompt, answers = {}, gameType, dimension, existingAssets = [] }) {
+  const parts = [];
+  parts.push(`RAW USER GAME IDEA: ${prompt}`);
+  if (gameType) parts.push(`KNOWN GAME TYPE: ${gameType}`);
+  if (dimension) parts.push(`KNOWN DIMENSION: ${dimension}`);
+
+  const answerEntries = Object.entries(answers || {});
+  if (answerEntries.length) {
+    parts.push('QUESTION ANSWERS:');
+    for (const [key, value] of answerEntries.slice(0, 20)) {
+      parts.push(`- ${key}: ${value}`);
+    }
+  }
+
+  if (existingAssets.length) {
+    parts.push('AVAILABLE EXISTING ASSETS:');
+    for (const asset of existingAssets.slice(0, 20)) {
+      const tags = Array.isArray(asset.tags) && asset.tags.length ? ` tags=${asset.tags.slice(0, 6).join(',')}` : '';
+      parts.push(`- ${asset.id}: ${asset.name}${asset.type ? ` (${asset.type})` : ''}${tags}`);
+    }
+  }
+
+  parts.push('');
+  parts.push('Create a production-ready Game Brief for planning only.');
+  parts.push('Do not generate full game code.');
   parts.push('Return JSON only.');
   return parts.join('\n');
 }
@@ -74,5 +107,6 @@ module.exports = {
   buildGenerationPrompt,
   buildEditPrompt,
   buildMCQPrompt,
+  buildGameBriefPrompt,
   buildGenericJSONPrompt
 };

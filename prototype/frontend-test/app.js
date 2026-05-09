@@ -1,7 +1,8 @@
 ﻿const STORE = {
   token: 'gvc.frontendTest.token',
   apiBase: 'gvc.frontendTest.apiBase',
-  currentGameId: 'gvc.frontendTest.currentGameId'
+  currentGameId: 'gvc.frontendTest.currentGameId',
+  enginePreviewUrl: 'gvc.frontendTest.enginePreviewUrl'
 };
 
 const genres = {
@@ -17,6 +18,9 @@ const state = {
   currentGame: null,
   currentHTML: '',
   currentAssets: [],
+  currentBrief: null,
+  currentAssetManifest: null,
+  currentPreviewMode: 'legacy',
   mcqQuestions: [],
   mcqAnswers: {}
 };
@@ -25,6 +29,10 @@ const $ = (id) => document.getElementById(id);
 
 function apiBase() {
   return $('apiBase').value.replace(/\/$/, '');
+}
+
+function enginePreviewUrl() {
+  return $('enginePreviewUrl').value.trim() || 'http://localhost:5175/preview.html';
 }
 
 function authHeaders(extra = {}) {
@@ -157,16 +165,62 @@ function renderCurrentGame() {
     $('jsonOut').textContent = '';
     $('assetsOut').textContent = '';
     $('htmlOut').textContent = '';
+    $('gameFrame').removeAttribute('src');
     $('gameFrame').removeAttribute('srcdoc');
     return;
   }
 
-  $('gameTitle').textContent = game.title || game.gameJSON?.metadata?.gameTitle || 'Untitled';
-  $('gameMeta').textContent = `${game.genre || game.gameJSON?.metadata?.genre || '-'} | ${game.dimension || game.gameJSON?.metadata?.dimension || '-'} | ${game.id || 'unsaved'}`;
+  const isEnginePreview = state.currentPreviewMode === 'engine';
+  $('gameTitle').textContent = game.title || game.gameJSON?.metadata?.title || game.gameJSON?.metadata?.gameTitle || 'Untitled';
+  $('gameMeta').textContent = `${game.genre || game.gameJSON?.metadata?.genre || '-'} | ${game.dimension || game.gameJSON?.metadata?.dimension || '-'} | ${isEnginePreview ? 'GameDefinition preview' : game.id || 'unsaved'}`;
   $('jsonOut').textContent = JSON.stringify(game.gameJSON || game, null, 2);
-  $('assetsOut').textContent = JSON.stringify(state.currentAssets || game.assetManifest || [], null, 2);
+  $('assetsOut').textContent = JSON.stringify({
+    selectedAssets: state.currentAssets || [],
+    assetManifest: state.currentAssetManifest || game.assetManifest || null
+  }, null, 2);
+  $('htmlOut').textContent = JSON.stringify({
+    brief: state.currentBrief || game.brief || null,
+    meta: game.meta || null
+  }, null, 2);
+
+  if (isEnginePreview) {
+    $('gameFrame').removeAttribute('srcdoc');
+    wireEnginePreviewFrame();
+    return;
+  }
+
+  $('gameFrame').removeAttribute('src');
   $('htmlOut').textContent = state.currentHTML || game.htmlString || '';
   $('gameFrame').srcdoc = state.currentHTML || game.htmlString || '<p>No HTML</p>';
+}
+
+function wireEnginePreviewFrame() {
+  const frame = $('gameFrame');
+  const url = enginePreviewUrl();
+  frame.onload = () => postEnginePreviewDefinition();
+  if (frame.src !== url) {
+    frame.src = url;
+  } else {
+    postEnginePreviewDefinition();
+  }
+}
+
+function postEnginePreviewDefinition() {
+  if (state.currentPreviewMode !== 'engine' || !state.currentGame?.gameJSON) return;
+  const frameWindow = $('gameFrame').contentWindow;
+  if (!frameWindow) return;
+  frameWindow.postMessage({
+    type: 'LOOMIER_PREVIEW_GAME_DEFINITION',
+    gameDefinition: state.currentGame.gameJSON
+  }, '*');
+}
+
+function handlePreviewMessage(event) {
+  const message = event.data;
+  if (!message || message.type !== 'LOOMIER_PREVIEW_STATUS') return;
+  if (message.status === 'error') {
+    toast(`Preview error: ${message.error || 'unknown error'}`, 'bad');
+  }
 }
 
 async function refreshMe() {
@@ -196,6 +250,9 @@ async function loadGame(id) {
     state.currentGame = game;
     state.currentHTML = game.htmlString || '';
     state.currentAssets = game.assetManifest || [];
+    state.currentBrief = null;
+    state.currentAssetManifest = game.assetManifest || null;
+    state.currentPreviewMode = 'legacy';
     localStorage.setItem(STORE.currentGameId, game.id);
     renderCurrentGame();
     activateTab('preview');
@@ -255,6 +312,9 @@ function logout() {
   state.tokens = null;
   state.games = [];
   state.currentGame = null;
+  state.currentBrief = null;
+  state.currentAssetManifest = null;
+  state.currentPreviewMode = 'legacy';
   localStorage.removeItem(STORE.token);
   renderAuth();
   renderGames();
@@ -276,10 +336,73 @@ async function generateMCQ() {
   toast(data.meta?.fallback ? '׳ ׳•׳¦׳¨׳• ׳©׳׳׳•׳× ׳‘׳׳¦׳‘ Demo Fallback' : '׳ ׳•׳¦׳¨׳• ׳©׳׳׳•׳× MCQ');
 }
 
+async function generateBrief() {
+  const body = buildGenerationBody(true);
+  setBusy(true, 'Generating Game Brief', 'OpenRouter ׳׳™׳™׳¦׳¨ ׳×׳›׳ ׳•׳ ׳׳׳©׳—׳§');
+  const data = await request('/brief/generate', { method: 'POST', body });
+
+  state.currentBrief = data.brief;
+  state.currentPreviewMode = 'brief';
+  state.currentGame = {
+    id: null,
+    title: data.brief?.title,
+    genre: data.brief?.genre,
+    dimension: data.brief?.dimension,
+    gameJSON: { brief: data.brief },
+    brief: data.brief,
+    meta: data.meta
+  };
+  state.currentHTML = '';
+  state.currentAssets = [];
+  state.currentAssetManifest = null;
+  if (data.meta?.tokens) state.tokens = data.meta.tokens;
+  renderAuth();
+  renderCurrentGame();
+  activateTab('preview');
+  activateInspector('json');
+  toast(data.meta?.fallback ? 'Game Brief ׳ ׳•׳¦׳¨ ׳‘׳׳¦׳‘ fallback' : 'Game Brief ׳ ׳•׳¦׳¨');
+  return data.brief;
+}
+
+async function generateEnginePreview() {
+  const brief = state.currentBrief || await generateBrief();
+  const body = {
+    ...buildGenerationBody(true),
+    brief
+  };
+
+  setBusy(true, 'Generating GameDefinition', '׳‘׳•׳—׳¨ assets ׳•׳׳™׳™׳¦׳¨ preview ׳œ-GAME_ENGINE');
+  const data = await request('/engine/from-brief', { method: 'POST', body });
+
+  state.currentBrief = data.brief;
+  state.currentPreviewMode = 'engine';
+  state.currentAssetManifest = data.assetManifest || null;
+  state.currentAssets = data.selectedAssets || [];
+  state.currentHTML = '';
+  state.currentGame = {
+    id: null,
+    title: data.gameDefinition?.metadata?.title,
+    genre: data.gameDefinition?.metadata?.genre || data.brief?.genre,
+    dimension: data.brief?.dimension,
+    gameJSON: data.gameDefinition,
+    assetManifest: data.assetManifest,
+    selectedAssets: data.selectedAssets,
+    brief: data.brief,
+    meta: data.meta
+  };
+  renderCurrentGame();
+  activateTab('preview');
+  activateInspector('json');
+  toast(`GameDefinition ׳ ׳•׳¦׳¨ ׳¢׳ ${state.currentAssets.length} asset candidates`);
+}
+
 async function generateGame() {
   const body = buildGenerationBody(true);
   setBusy(true, 'Generating game', '׳–׳” ׳™׳›׳•׳ ׳׳§׳—׳× ׳§׳¦׳× ׳–׳׳');
   const data = await request('/generate-game', { method: 'POST', body });
+  state.currentPreviewMode = 'legacy';
+  state.currentBrief = null;
+  state.currentAssetManifest = data.assetManifest || null;
   state.currentGame = {
     id: data.gameId,
     title: data.gameJSON?.metadata?.gameTitle,
@@ -310,6 +433,9 @@ async function editGame() {
   };
   setBusy(true, 'Editing game', '׳׳¢׳“׳›׳ ׳׳× ׳”׳׳©׳—׳§ ׳”׳§׳™׳™׳');
   const data = await request('/edit-game', { method: 'POST', body });
+  state.currentPreviewMode = 'legacy';
+  state.currentBrief = null;
+  state.currentAssetManifest = data.assetManifest || null;
   state.currentGame = {
     id: data.gameId || gameId,
     title: data.gameJSON?.metadata?.gameTitle,
@@ -334,6 +460,7 @@ async function fetchAssets() {
   if (!id) throw new Error('׳׳™׳ Game ID');
   const data = await request(`/games/${encodeURIComponent(id)}/assets`);
   state.currentAssets = data.assets || [];
+  state.currentAssetManifest = data.assets || null;
   renderCurrentGame();
   activateInspector('assets');
   toast('Assets ׳ ׳˜׳¢׳ ׳•');
@@ -439,6 +566,8 @@ function bind(id, event, handler) {
 async function boot() {
   const savedBase = localStorage.getItem(STORE.apiBase);
   if (savedBase) $('apiBase').value = savedBase;
+  const savedEnginePreviewUrl = localStorage.getItem(STORE.enginePreviewUrl);
+  if (savedEnginePreviewUrl) $('enginePreviewUrl').value = savedEnginePreviewUrl;
 
   syncGenres();
   renderAuth();
@@ -447,7 +576,9 @@ async function boot() {
   renderCurrentGame();
 
   $('apiBase').addEventListener('change', () => localStorage.setItem(STORE.apiBase, apiBase()));
+  $('enginePreviewUrl').addEventListener('change', () => localStorage.setItem(STORE.enginePreviewUrl, enginePreviewUrl()));
   $('dimension').addEventListener('change', syncGenres);
+  window.addEventListener('message', handlePreviewMessage);
 
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => activateTab(tab.dataset.tab));
@@ -465,6 +596,14 @@ async function boot() {
     await generateMCQ();
     setBusy(false);
   });
+  bind('btnGenerateBrief', 'click', async () => {
+    await generateBrief();
+    setBusy(false);
+  });
+  bind('btnGenerateEnginePreview', 'click', async () => {
+    await generateEnginePreview();
+    setBusy(false);
+  });
   bind('btnGenerateGame', 'click', async () => {
     await generateGame();
     setBusy(false);
@@ -474,7 +613,13 @@ async function boot() {
     state.mcqAnswers = {};
     renderMCQ();
   });
-  bind('btnReloadFrame', 'click', () => renderCurrentGame());
+  bind('btnReloadFrame', 'click', () => {
+    if (state.currentPreviewMode === 'engine') {
+      $('gameFrame').src = enginePreviewUrl();
+      return;
+    }
+    renderCurrentGame();
+  });
   bind('btnDownload', 'click', downloadCurrent);
   bind('btnEditGame', 'click', async () => {
     await editGame();

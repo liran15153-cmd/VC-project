@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Engine } from '../core/Engine';
 import { Scene } from '../core/Scene';
 import { Transform } from '../components/Transform';
@@ -24,6 +25,7 @@ import type {
   GameDefinition,
   LightDefinition,
   MeshDefinition,
+  ModelDefinition,
   PrefabDefinition,
   RigidBodyDefinition,
   SceneDefinition,
@@ -48,6 +50,7 @@ export class GameRuntime {
   readonly assets = new AssetManager();
   readonly systemRegistry = new Registry<SystemFactory>('SystemRegistry');
   private definition: GameDefinition | null = null;
+  private readonly modelAssets = new Map<string, THREE.Object3D>();
 
   constructor(private readonly engine: Engine) {
     this.systemRegistry.register('physicsSync', () => new PhysicsSyncSystem());
@@ -68,9 +71,10 @@ export class GameRuntime {
     this.engine.input.configureBindings(definition.inputBindings);
 
     await this.assets.loadMany(definition.assets);
+    await this.loadModelAssets(definition);
 
     for (const scene of definition.scenes) {
-      this.engine.scenes.register(scene.key, new DefinitionScene(scene, definition, this.systemRegistry, this.assets));
+      this.engine.scenes.register(scene.key, new DefinitionScene(scene, definition, this.systemRegistry, this.assets, this.modelAssets));
     }
 
     if (options.autoSwitch ?? true) {
@@ -84,6 +88,20 @@ export class GameRuntime {
   currentDefinition(): GameDefinition | null {
     return this.definition;
   }
+
+  private async loadModelAssets(definition: GameDefinition): Promise<void> {
+    this.modelAssets.clear();
+    const gltfAssets = definition.assets.filter((asset) => asset.type === 'gltf');
+    if (gltfAssets.length === 0) return;
+
+    const loader = new GLTFLoader();
+    await Promise.all(gltfAssets.map(async (asset) => {
+      const data = this.assets.require<ArrayBuffer>(asset.key);
+      if (!(data instanceof ArrayBuffer)) throw new Error(`Model asset "${asset.key}" did not load as an ArrayBuffer.`);
+      const gltf = await parseGltf(loader, data);
+      this.modelAssets.set(asset.key, gltf.scene);
+    }));
+  }
 }
 
 class DefinitionScene extends Scene {
@@ -92,6 +110,7 @@ class DefinitionScene extends Scene {
     private readonly rootDefinition: GameDefinition,
     private readonly systemRegistry: Registry<SystemFactory>,
     private readonly assets: AssetManager,
+    private readonly modelAssets: Map<string, THREE.Object3D>,
   ) {
     super();
   }
@@ -134,7 +153,8 @@ class DefinitionScene extends Scene {
     this.world.addComponent(id, new EntityInfo({ key: entity.key, name: entity.name, tags: entity.tags, data: entity.data }));
     this.world.addComponent(id, transform);
 
-    if (entity.mesh) this.attachMesh(engine, id, entity.mesh);
+    if (entity.model) this.attachModel(engine, id, entity.model);
+    else if (entity.mesh) this.attachMesh(engine, id, entity.mesh);
     if (entity.rigidBody) this.attachRigidBody(engine, id, entity.rigidBody, transform);
     if (entity.sprite) this.attachSprite(engine, id, entity.sprite);
     if (entity.cameraTarget) {
@@ -208,6 +228,31 @@ class DefinitionScene extends Scene {
       disposeObject(mesh);
     });
     this.world.addComponent(id, new MeshComponent(mesh));
+  }
+
+  private attachModel(engine: Engine, id: number, definition: ModelDefinition): void {
+    if (!engine.three) throw new Error(`Entity ${id} defines a model but 3D rendering is disabled.`);
+    const template = this.modelAssets.get(definition.assetKey);
+    if (!template) throw new Error(`Model asset "${definition.assetKey}" is not loaded.`);
+
+    const root = new THREE.Group();
+    const model = template.clone(true);
+    model.position.set(definition.positionOffset.x, definition.positionOffset.y, definition.positionOffset.z);
+    model.rotation.set(definition.rotationOffset.x, definition.rotationOffset.y, definition.rotationOffset.z);
+    model.scale.set(definition.scale.x, definition.scale.y, definition.scale.z);
+    model.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = definition.castShadow;
+      mesh.receiveShadow = definition.receiveShadow;
+    });
+    root.add(model);
+
+    engine.three.scene.add(root);
+    this.addCleanup(() => {
+      engine.three?.scene.remove(root);
+    });
+    this.world.addComponent(id, new MeshComponent(root));
   }
 
   private attachRigidBody(engine: Engine, id: number, definition: RigidBodyDefinition, transform: Transform): void {
@@ -335,12 +380,19 @@ function prefabToEntity(
       position: options.position ?? prefab.transform.position,
     },
     mesh: prefab.mesh,
+    model: prefab.model,
     rigidBody: prefab.rigidBody,
     sprite: prefab.sprite,
     cameraTarget: prefab.cameraTarget,
     tags: [...prefab.tags, ...(options.tags ?? [])],
     data: { ...prefab.data, ...(options.data ?? {}) },
   };
+}
+
+function parseGltf(loader: GLTFLoader, data: ArrayBuffer): Promise<GLTF> {
+  return new Promise((resolve, reject) => {
+    loader.parse(data, '', resolve, reject);
+  });
 }
 
 function cryptoRandomId(): string {

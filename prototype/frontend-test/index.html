@@ -23,6 +23,8 @@
           <input id="apiBase" type="url" value="http://localhost:3000/api">
           <button id="btnHealth" class="icon-btn" title="׳‘׳“׳™׳§׳× ׳©׳¨׳×">ג†»</button>
         </div>
+        <label for="enginePreviewUrl">GAME_ENGINE Preview URL</label>
+        <input id="enginePreviewUrl" type="url" value="http://localhost:5175/preview.html">
         <div id="healthStatus" class="status muted">׳׳ ׳ ׳‘׳“׳§ ׳¢׳“׳™׳™׳</div>
       </section>
 
@@ -121,7 +123,9 @@
               </div>
               <div class="actions">
                 <button id="btnGenerateMcq">Generate MCQ</button>
-                <button id="btnGenerateGame" class="primary">Generate Game</button>
+                <button id="btnGenerateBrief">Generate Brief</button>
+                <button id="btnGenerateEnginePreview" class="primary">Generate GameDefinition Preview</button>
+                <button id="btnGenerateGame" class="ghost">Legacy HTML</button>
               </div>
             </div>
           </section>
@@ -158,7 +162,7 @@
             <div class="tabs small-tabs">
               <button class="mini-tab active" data-inspector="json">JSON</button>
               <button class="mini-tab" data-inspector="assets">Assets</button>
-              <button class="mini-tab" data-inspector="html">HTML</button>
+              <button class="mini-tab" data-inspector="html">Brief / Meta</button>
             </div>
             <pre id="jsonOut" class="code"></pre>
             <pre id="assetsOut" class="code hidden"></pre>

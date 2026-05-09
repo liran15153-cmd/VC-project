@@ -90,14 +90,14 @@ function humanizeError(status: number, payload: any): string {
   if (lower.includes('openrouter_api_key')) {
     return 'OpenRouter key is not configured in backend .env (OPENROUTER_API_KEY).';
   }
-  if (lower.includes('openai_api_key')) {
-    return 'OpenAI key is not configured in backend .env (OPENAI_API_KEY).';
-  }
   if (lower.includes('not configured') || lower.includes('api key')) {
-    return 'AI provider key is not configured in backend .env.';
+    return 'OpenRouter key is not configured in backend .env (OPENROUTER_API_KEY).';
   }
   if (lower.includes('quota') || lower.includes('rate limit')) {
     return 'AI provider quota exceeded or rate limited. Check billing/quota and try again.';
+  }
+  if (lower.includes('timeout')) {
+    return 'OpenRouter took too long to respond. Try again, or use a faster model for this test.';
   }
   if (status >= 500) return rawMsg || 'Server error. Try again in a moment.';
   return rawMsg || `Request failed (${status})${code ? ` [${code}]` : ''}`;

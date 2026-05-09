@@ -17,6 +17,9 @@
     "backend:dev": "npm run dev -w gaming-vibe-coding-backend",
     "backend:check": "npm run check -w gaming-vibe-coding-backend",
     "backend:test": "npm run test -w gaming-vibe-coding-backend",
+    "import:assets": "node scripts/import-assets.js",
+    "validate:assets": "node scripts/validate-assets.js",
+    "assets:summary": "node scripts/assets-summary.js",
     "verify": "npm run engine:verify && npm run backend:check && npm run backend:test"
   }
 }

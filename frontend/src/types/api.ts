@@ -48,6 +48,7 @@ export interface HealthResponse {
     openrouter?: 'configured' | 'not_configured' | string;
   };
   ai?: {
+    mode?: 'mock' | 'real' | 'hybrid' | string;
     provider?: 'openai' | 'openrouter' | string;
     providerLabel?: string;
     configured?: boolean;
@@ -63,11 +64,65 @@ export interface MCQGenerateResponse {
   questions: MCQQuestion[];
   meta: {
     provider?: string;
+    mode?: string;
     model?: string;
     durationMs?: number;
     fallback?: boolean;
     fallbackReason?: string;
+    schemaRepair?: boolean;
+    cached?: boolean;
+    tokenOptimized?: boolean;
+    tokenOptimization?: unknown;
     tokens?: TokenBalance;
+  };
+}
+
+export interface GameBrief {
+  title: string;
+  oneSentencePitch: string;
+  playerFantasy: string;
+  targetPlatform: 'mobile-first' | 'desktop-first' | 'cross-platform';
+  dimension: '2D' | '3D' | 'hybrid';
+  genre: string;
+  coreLoop: string[];
+  keyMechanics: string[];
+  controls: {
+    primary: string;
+    mobile: string;
+    accessibilityNotes: string[];
+  };
+  runtimePlan: {
+    runtime: 'hybrid';
+    phaserRole: string;
+    threeRole: string;
+    rapierRole: string;
+    godotStyleGenerationNotes: string;
+    systems: string[];
+  };
+  assetPlan: {
+    existingAssetsToUse: string[];
+    assetsToGenerate: string[];
+    visualStyle: string;
+  };
+  missingInfo: string[];
+  followUpQuestions: MCQQuestion[];
+  productionNotes: string[];
+  nonGoals: string[];
+}
+
+export interface GameBriefGenerateResponse {
+  brief: GameBrief;
+  meta: {
+    provider?: string;
+    mode?: string;
+    model?: string;
+    durationMs?: number;
+    fallback?: boolean;
+    fallbackReason?: string;
+    schemaRepair?: boolean;
+    cached?: boolean;
+    tokenOptimization?: unknown;
+    codeGenerated?: false;
   };
 }
 

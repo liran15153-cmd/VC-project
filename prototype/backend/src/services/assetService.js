@@ -1,12 +1,16 @@
 /* ============================================================================
    Asset Service
    ----------------------------------------------------------------------------
-   MVP asset contract. Current renderer is procedural, but every game gets a
-   manifest so future image/audio generation can plug in without DB changes.
+   MVP asset contract. Legacy generated games still use procedural placeholders,
+   but the manifest can now include local library assets when the registry has
+   useful matches.
    ========================================================================= */
+
+const { getRecommendedAssetsForGameBrief, buildGameAssetManifest } = require('./assetRegistryService');
 
 function buildAssetManifest(gameJSON) {
   const dimension = gameJSON?.metadata?.dimension;
+  const engine = dimension === '3D' ? 'three' : 'phaser';
   const base = [
     {
       key: 'player',
@@ -51,7 +55,30 @@ function buildAssetManifest(gameJSON) {
     });
   }
 
-  return base;
+  const registryAssets = findRegistryAssetsForGame(gameJSON, engine);
+  return [...base, ...registryAssets];
+}
+
+function findRegistryAssetsForGame(gameJSON, engine) {
+  try {
+    const recommended = getRecommendedAssetsForGameBrief({
+      prompt: gameJSON?.metadata?.description,
+      gameType: gameJSON?.metadata?.genre,
+      dimension: gameJSON?.metadata?.dimension,
+      theme: gameJSON?.level?.theme || gameJSON?.audio?.theme,
+      assetPlan: {
+        assetsToGenerate: [
+          gameJSON?.collectibles?.type,
+          gameJSON?.enemies?.behavior,
+          gameJSON?.metadata?.genre
+        ].filter(Boolean)
+      }
+    }, 8);
+
+    return buildGameAssetManifest(recommended.map((asset) => asset.id), engine).assets;
+  } catch {
+    return [];
+  }
 }
 
 module.exports = { buildAssetManifest };

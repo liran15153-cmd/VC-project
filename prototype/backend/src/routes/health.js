@@ -28,6 +28,7 @@ router.get('/', (_req, res) => {
       openrouter: config.openrouter.enabled ? 'configured' : 'not_configured'
     },
     ai: {
+      mode: config.ai.mode,
       provider: config.ai.provider,
       providerLabel: config.ai.providerLabel,
       configured: aiConfigured,

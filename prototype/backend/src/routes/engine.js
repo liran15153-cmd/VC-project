@@ -8,17 +8,13 @@
 const express = require('express');
 const { z } = require('zod');
 const validate = require('../middleware/validate');
-const { modelSchema } = require('../schemas/apiSchemas');
+const { engineFromBriefGenerateSchema, modelSchema } = require('../schemas/apiSchemas');
 const { GENERATION } = require('../config/constants');
-const { generateJSON } = require('../services/openaiService');
 const {
-  ENGINE_GAME_SYSTEM_PROMPT,
-  buildEngineGenerationPrompt,
-  buildEngineCorrectionPrompt
-} = require('../services/enginePromptService');
-const { validateEngineGameDefinitionSafe } = require('../schemas/engineGameDefinitionSchema');
+  generateEngineGameFromBrief,
+  generateEngineGameWithRetries
+} = require('../services/engineGenerationService');
 const { ExternalAPIError } = require('../utils/errors');
-const logger = require('../utils/logger');
 const config = require('../config/env');
 
 const router = express.Router();
@@ -31,44 +27,6 @@ const engineGenerateSchema = z.object({
   model: modelSchema
 });
 
-async function generateEngineGameWithRetries({ prompt, model }) {
-  let lastReason = null;
-  let userPrompt = buildEngineGenerationPrompt({ prompt });
-  let totalDurationMs = 0;
-  let lastModel = model || null;
-
-  for (let attempt = 1; attempt <= GENERATION.MAX_RETRIES; attempt++) {
-    const result = await generateJSON({
-      prompt: userPrompt,
-      systemPrompt: ENGINE_GAME_SYSTEM_PROMPT,
-      model,
-      generationConfig: { temperature: attempt === 1 ? 0.92 : 0.7, maxOutputTokens: 12000 }
-    });
-
-    totalDurationMs += result.durationMs;
-    lastModel = result.model;
-
-    const check = validateEngineGameDefinitionSafe(result.json);
-    if (check.ok) {
-      return {
-        gameDefinition: check.data,
-        model: result.model,
-        durationMs: totalDurationMs,
-        attempts: attempt
-      };
-    }
-
-    lastReason = check.errors.map((error) => `${error.path || '<root>'}: ${error.message}`).join('; ');
-    logger.warn({ attempt, reason: lastReason }, 'GAME_ENGINE GameDefinition validation failed');
-    userPrompt = buildEngineCorrectionPrompt({ originalPrompt: prompt, validationReason: lastReason });
-  }
-
-  throw new ExternalAPIError(
-    lastModel || 'AI provider',
-    `GameDefinition validation failed after ${GENERATION.MAX_RETRIES} attempts: ${lastReason || 'unknown validation error'}`
-  );
-}
-
 router.post('/generate', validate(engineGenerateSchema), async (req, res, next) => {
   try {
     const result = await generateEngineGameWithRetries(req.body);
@@ -80,6 +38,29 @@ router.post('/generate', validate(engineGenerateSchema), async (req, res, next) 
         model: result.model,
         durationMs: result.durationMs,
         attempts: result.attempts,
+        persistence: 'supabase_pending'
+      }
+    });
+  } catch (err) {
+    next(toUserFacingGenerationError(err));
+  }
+});
+
+router.post('/from-brief', validate(engineFromBriefGenerateSchema), async (req, res, next) => {
+  try {
+    const result = await generateEngineGameFromBrief(req.body);
+
+    res.json({
+      brief: result.brief,
+      selectedAssets: result.selectedAssets,
+      assetManifest: result.assetManifest,
+      gameDefinition: result.gameDefinition,
+      meta: {
+        provider: config.ai.provider,
+        model: result.model,
+        durationMs: result.durationMs,
+        attempts: result.attempts,
+        selectedAssetCount: result.selectedAssets.length,
         persistence: 'supabase_pending'
       }
     });

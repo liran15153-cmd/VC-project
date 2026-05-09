@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kenney Coin Runner</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/node_modules/three/build/three.module.js",
+          "three/addons/": "/node_modules/three/examples/jsm/"
+        }
+      }
+    </script>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #7ec8d8;
+        color: #f8fafc;
+        font-family: "Trebuchet MS", Verdana, sans-serif;
+      }
+
+      #game {
+        position: fixed;
+        inset: 0;
+      }
+
+      .hud {
+        position: fixed;
+        top: 18px;
+        left: 18px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        z-index: 2;
+      }
+
+      .pill {
+        min-width: 94px;
+        padding: 9px 12px;
+        border: 2px solid rgba(15, 23, 42, 0.75);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.78);
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22);
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .status {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 2;
+        max-width: 320px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.78);
+        border: 2px solid rgba(248, 250, 252, 0.2);
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .message {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        display: none;
+        place-items: center;
+        background: rgba(8, 13, 24, 0.35);
+        text-align: center;
+      }
+
+      .message.visible {
+        display: grid;
+      }
+
+      .message h1 {
+        margin: 0 0 8px;
+        font-size: 56px;
+        line-height: 1;
+        text-shadow: 0 5px 0 rgba(15, 23, 42, 0.28);
+      }
+
+      .message p {
+        margin: 0;
+        font-size: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="game" aria-label="Kenney Coin Runner game canvas"></main>
+    <div class="hud">
+      <div class="pill">Coins <span id="score">0</span>/8</div>
+      <div class="pill">Lives <span id="lives">3</span></div>
+    </div>
+    <div class="status" id="status">Use A/D or arrow keys to move. Space jumps.</div>
+    <div class="message" id="message">
+      <div>
+        <h1 id="message-title">You win</h1>
+        <p id="message-body">Refresh to play again.</p>
+      </div>
+    </div>
+
+    <script type="module">
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+      const ASSETS = {
+        player: '/assets/library/kenney-platformer-kit/models/glb-format/character-oobi.glb',
+        coin: '/assets/library/kenney-platformer-kit/models/glb-format/coin-gold.glb',
+        grassBlock: '/assets/library/kenney-platformer-kit/models/glb-format/block-grass-large.glb',
+        platform: '/assets/library/kenney-platformer-kit/models/glb-format/platform.glb',
+        spikes: '/assets/library/kenney-platformer-kit/models/glb-format/trap-spikes.glb',
+        flag: '/assets/library/kenney-platformer-kit/models/glb-format/flag.glb',
+        tree: '/assets/library/kenney-platformer-kit/models/glb-format/tree-pine.glb'
+      };
+
+      const root = document.querySelector('#game');
+      const scoreEl = document.querySelector('#score');
+      const livesEl = document.querySelector('#lives');
+      const statusEl = document.querySelector('#status');
+      const messageEl = document.querySelector('#message');
+      const messageTitleEl = document.querySelector('#message-title');
+      const messageBodyEl = document.querySelector('#message-body');
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color('#7ec8d8');
+      scene.fog = new THREE.Fog('#7ec8d8', 16, 34);
+
+      const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 80);
+      camera.position.set(-1.5, 6.2, 10);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      root.append(renderer.domElement);
+
+      scene.add(new THREE.HemisphereLight('#fff6d6', '#45636b', 2.4));
+      const sun = new THREE.DirectionalLight('#ffffff', 2.2);
+      sun.position.set(-7, 10, 8);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(2048, 2048);
+      scene.add(sun);
+
+      const loader = new GLTFLoader();
+      const keys = {};
+      const state = {
+        score: 0,
+        lives: 3,
+        won: false,
+        player: null,
+        playerVelocity: new THREE.Vector3(),
+        onGround: false,
+        coins: [],
+        hazards: [],
+        platforms: [],
+        clock: new THREE.Clock()
+      };
+
+      window.addEventListener('keydown', (event) => {
+        keys[event.code] = true;
+        if (event.code === 'Space') event.preventDefault();
+      });
+      window.addEventListener('keyup', (event) => {
+        keys[event.code] = false;
+      });
+      window.addEventListener('resize', resize);
+
+      await boot();
+      renderer.setAnimationLoop(update);
+
+      async function boot() {
+        statusEl.textContent = 'Loading Kenney assets from the local LOOMIER library...';
+        const models = await loadModels(ASSETS);
+
+        addSkyline(models.tree);
+        addWorld(models);
+        addPlayer(models.player);
+        statusEl.textContent = 'Collect all coins. Avoid spikes. Reach the flag.';
+      }
+
+      async function loadModels(assetMap) {
+        const entries = await Promise.all(
+          Object.entries(assetMap).map(async ([key, url]) => {
+            const gltf = await loader.loadAsync(url);
+            return [key, gltf.scene];
+          })
+        );
+        return Object.fromEntries(entries);
+      }
+
+      function cloneModel(model, scale = 1) {
+        const clone = model.clone(true);
+        clone.scale.setScalar(scale);
+        clone.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+        return clone;
+      }
+
+      function addWorld(models) {
+        const ground = makePlatform(models.grassBlock, 0, -0.7, 0, 3.2, 12);
+        ground.name = 'main-ground';
+
+        const steps = [
+          [-4.3, 0.7, 0, 1.25, 2.3],
+          [-1.2, 1.7, 0, 1.1, 2],
+          [2.4, 2.5, 0, 1.1, 2],
+          [5.2, 1.35, 0, 1.1, 2]
+        ];
+        for (const step of steps) makePlatform(models.platform, ...step);
+
+        const coinPositions = [
+          [-3.4, 0.65, 0],
+          [-2.4, 1.95, 0],
+          [-0.9, 2.95, 0],
+          [0.6, 0.65, 0],
+          [2.4, 3.55, 0],
+          [4.4, 0.45, 0],
+          [5.2, 2.4, 0],
+          [7.1, 0.45, 0]
+        ];
+        for (const position of coinPositions) addCoin(models.coin, position);
+
+        addHazard(models.spikes, [-2.7, 0.05, 0]);
+        addHazard(models.spikes, [3.4, 0.05, 0]);
+
+        const flag = cloneModel(models.flag, 0.9);
+        flag.position.set(8.3, 0.25, 0);
+        flag.rotation.y = -0.2;
+        scene.add(flag);
+      }
+
+      function makePlatform(model, x, y, z, sx, width) {
+        const platform = cloneModel(model, sx);
+        platform.position.set(x, y, z);
+        platform.scale.x *= width / 3;
+        platform.scale.z *= 1.15;
+        scene.add(platform);
+        state.platforms.push({ x, y: y + 0.62 * sx, width: width * sx, height: 0.52 * sx });
+        return platform;
+      }
+
+      function addPlayer(model) {
+        const player = cloneModel(model, 1.35);
+        player.position.set(-3.2, 2.35, 0);
+        player.rotation.y = Math.PI / 2;
+        const beacon = new THREE.Mesh(
+          new THREE.SphereGeometry(0.28, 24, 16),
+          new THREE.MeshStandardMaterial({ color: '#1d4ed8', emissive: '#2563eb', emissiveIntensity: 0.25 })
+        );
+        beacon.position.set(0, 1.35, 0);
+        beacon.castShadow = true;
+        player.add(beacon);
+        scene.add(player);
+        state.player = player;
+      }
+
+      function addCoin(model, position) {
+        const coin = cloneModel(model, 0.72);
+        coin.position.set(position[0], position[1], position[2]);
+        coin.rotation.x = Math.PI / 2;
+        scene.add(coin);
+        state.coins.push(coin);
+      }
+
+      function addHazard(model, position) {
+        const hazard = cloneModel(model, 0.85);
+        hazard.position.set(position[0], position[1], position[2]);
+        scene.add(hazard);
+        state.hazards.push(hazard);
+      }
+
+      function addSkyline(treeModel) {
+        for (let i = 0; i < 16; i += 1) {
+          const tree = cloneModel(treeModel, 1.15 + (i % 3) * 0.16);
+          tree.position.set(-8 + i * 1.2, -0.52, -3.8 - (i % 2) * 0.7);
+          tree.rotation.y = i * 0.37;
+          scene.add(tree);
+        }
+      }
+
+      function update() {
+        const dt = Math.min(state.clock.getDelta(), 0.033);
+        if (!state.player || state.won) {
+          renderer.render(scene, camera);
+          return;
+        }
+
+        updatePlayer(dt);
+        updateCoins(dt);
+        updateCamera(dt);
+        renderer.render(scene, camera);
+      }
+
+      function updatePlayer(dt) {
+        const player = state.player;
+        const movingLeft = keys.ArrowLeft || keys.KeyA;
+        const movingRight = keys.ArrowRight || keys.KeyD;
+        const speed = 6.2;
+
+        state.playerVelocity.x = (movingRight ? speed : 0) + (movingLeft ? -speed : 0);
+        if ((keys.Space || keys.ArrowUp || keys.KeyW) && state.onGround) {
+          state.playerVelocity.y = 7.8;
+          state.onGround = false;
+        }
+
+        state.playerVelocity.y -= 18 * dt;
+        player.position.x += state.playerVelocity.x * dt;
+        player.position.y += state.playerVelocity.y * dt;
+        player.position.z += (0 - player.position.z) * Math.min(1, dt * 9);
+
+        state.onGround = false;
+        for (const platform of state.platforms) {
+          const inX = Math.abs(player.position.x - platform.x) <= platform.width * 0.5;
+          const falling = state.playerVelocity.y <= 0;
+          const nearTop = player.position.y >= platform.y && player.position.y <= platform.y + 0.45;
+          if (inX && falling && nearTop) {
+            player.position.y = platform.y;
+            state.playerVelocity.y = 0;
+            state.onGround = true;
+          }
+        }
+
+        if (player.position.y < -4) takeDamage();
+        if (state.playerVelocity.x !== 0) player.rotation.y = state.playerVelocity.x > 0 ? Math.PI / 2 : -Math.PI / 2;
+
+        for (const hazard of state.hazards) {
+          if (player.position.distanceTo(hazard.position) < 0.85) takeDamage();
+        }
+      }
+
+      function updateCoins(dt) {
+        const player = state.player;
+        for (const coin of [...state.coins]) {
+          coin.rotation.z += dt * 4;
+          coin.position.y += Math.sin(performance.now() * 0.004 + coin.position.x) * 0.002;
+          if (player.position.distanceTo(coin.position) < 0.9) {
+            scene.remove(coin);
+            state.coins.splice(state.coins.indexOf(coin), 1);
+            state.score += 1;
+            scoreEl.textContent = String(state.score);
+          }
+        }
+        if (state.score >= 8) win();
+      }
+
+      function takeDamage() {
+        state.lives -= 1;
+        livesEl.textContent = String(state.lives);
+        state.player.position.set(-3.2, 2.35, 0);
+        state.playerVelocity.set(0, 0, 0);
+        if (state.lives <= 0) end('Game Over', 'The asset pipeline works. The player did not.');
+      }
+
+      function win() {
+        end('You Win', 'A playable game loaded from the local Kenney asset library.');
+      }
+
+      function end(title, body) {
+        state.won = true;
+        messageTitleEl.textContent = title;
+        messageBodyEl.textContent = body;
+        messageEl.classList.add('visible');
+      }
+
+      function updateCamera(dt) {
+        const target = new THREE.Vector3(state.player.position.x + 2.1, 5.6, 9.6);
+        camera.position.lerp(target, Math.min(1, dt * 4));
+        camera.lookAt(state.player.position.x + 0.9, 1.7, 0);
+      }
+
+      function resize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    </script>
+  </body>
+</html>

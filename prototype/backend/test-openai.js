@@ -1,37 +1,39 @@
-const { OpenAI } = require('openai');
+const OpenAI = require('openai');
 require('dotenv').config({ path: './.env' });
 
-async function testOpenAI() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  
-  // בדיקה אם המפתח עדיין על ערך ברירת המחדל
-  if (!apiKey || apiKey === 'replace-with-your-openai-api-key' || apiKey === 'your-openai-api-key') {
-    console.log('❌ שגיאה: לא הכנסת מפתח API אמיתי לקובץ ה-.env שלך!');
-    console.log('נא לערוך את הקובץ .env ולהחליף את "replace-with-your-openai-api-key" במפתח האמיתי שקיבלת מ-OpenAI.');
+async function testOpenRouter() {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+
+  if (!apiKey || apiKey === 'replace-with-your-openrouter-api-key' || apiKey === 'your-openrouter-api-key') {
+    console.log('Missing real OPENROUTER_API_KEY in prototype/backend/.env');
+    console.log('Create a key at https://openrouter.ai/keys, then rerun this script.');
     return;
   }
-  
-  console.log('בודק את מפתח ה-OpenAI שלך מול השרתים של OpenAI...');
-  
-  // שים לב שחלק מהמודלים הישנים של gpt-5 עדיין מוגדרים במערכת,
-  // אנחנו ננסה להשתמש במודל ברירת המחדל, או ניפול חזרה ל-gpt-4o לבדיקה
-  const modelToTest = process.env.OPENAI_DEFAULT_MODEL || 'gpt-4o';
-  console.log(`מנסה להשתמש במודל: ${modelToTest}`);
 
-  const openai = new OpenAI({ apiKey });
-  
+  const model = process.env.OPENROUTER_MODEL || process.env.OPENROUTER_DEFAULT_MODEL || 'openai/gpt-5-mini';
+  const client = new OpenAI({
+    apiKey,
+    baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+    defaultHeaders: {
+      'HTTP-Referer': process.env.OPENROUTER_APP_URL || 'http://localhost:5174',
+      'X-OpenRouter-Title': process.env.OPENROUTER_APP_TITLE || 'Gaming Vibe Coding'
+    }
+  });
+
+  console.log(`Testing OpenRouter model: ${model}`);
+
   try {
-    const response = await openai.chat.completions.create({
-      model: modelToTest,
-      messages: [{ role: 'user', content: 'Say exactly: API is working!' }],
+    const response = await client.chat.completions.create({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: 'Return exactly this JSON object: {"ok":true}' }]
     });
-    console.log('\n✅ מעולה! ה-API של OpenAI עובד בהצלחה!');
-    console.log('התשובה שהתקבלה מהשרת:', response.choices[0].message.content.trim());
-    console.log('\nאתה יכול עכשיו להפעיל את השרת שלך (npm start או npm run dev) ולבדוק דרך הממשק!');
+    console.log('OpenRouter API is working.');
+    console.log(response.choices[0].message.content.trim());
   } catch (err) {
-    console.log('\n❌ הבדיקה נכשלה. ה-API לא עובד.');
-    console.log('סיבת השגיאה:', err.message);
+    console.log('OpenRouter API test failed.');
+    console.log('Reason:', err.message);
   }
 }
 
-testOpenAI();
+testOpenRouter();

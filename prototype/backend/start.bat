@@ -31,8 +31,8 @@ if not exist .env (
     echo .env not found - copying from .env.example
     copy .env.example .env >nul
     echo.
-    echo [WARNING] Please edit .env and set OPENAI_API_KEY
-    echo Create a key at: https://platform.openai.com/api-keys
+    echo [WARNING] Please edit .env and set OPENROUTER_API_KEY
+    echo Create a key at: https://openrouter.ai/keys
     echo.
     pause
 )

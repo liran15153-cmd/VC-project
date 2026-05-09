@@ -5,34 +5,48 @@
 const express = require('express');
 const validate = require('../middleware/validate');
 const { mcqGenerateSchema, mcqQuestionsSchema } = require('../schemas/apiSchemas');
-const { generateJSON } = require('../services/openaiService');
 const { buildMCQPrompt } = require('../services/promptService');
 const { MCQ_SYSTEM_PROMPT } = require('../services/systemPrompts');
 const fallbackAI = require('../services/fallbackAIService');
+const { generateValidatedJSON } = require('../services/jsonAgentService');
+const { shouldUseMockForTask } = require('../services/aiModeService');
 const config = require('../config/env');
-const { ExternalAPIError } = require('../utils/errors');
 
 const router = express.Router();
 
 async function generateMCQOrFallback({ prompt, gameType, dimension, model }) {
+  if (shouldUseMockForTask('mcq', { prompt, gameType, dimension })) {
+    const mock = fallbackAI.generateMCQ({ prompt, gameType, dimension });
+    const parsed = mcqQuestionsSchema.parse({ questions: mock.questions });
+    return {
+      questions: parsed.questions,
+      model: 'local-mock',
+      durationMs: 0,
+      fallback: false,
+      mode: config.ai.mode,
+      tokenOptimized: true
+    };
+  }
+
   try {
-    const result = await generateJSON({
+    const result = await generateValidatedJSON({
+      schema: mcqQuestionsSchema,
       systemPrompt: MCQ_SYSTEM_PROMPT,
       prompt: buildMCQPrompt({ prompt, gameType, dimension }),
       model,
-      generationConfig: { temperature: 0.55, maxOutputTokens: 1500 }
+      generationConfig: { temperature: 0.75, maxOutputTokens: 2500 },
+      cacheKey: { task: 'mcq', prompt, gameType, dimension, model },
+      repairLabel: 'MCQ questions'
     });
 
-    const parsed = mcqQuestionsSchema.safeParse(result.json);
-    if (!parsed.success) {
-      throw new ExternalAPIError(config.ai.providerLabel, `Invalid MCQ JSON: ${parsed.error.issues.map(i => `${i.path.join('.')}:${i.message}`).join(', ')}`);
-    }
-
     return {
-      questions: parsed.data.questions,
+      questions: result.json.questions,
       model: result.model,
       durationMs: result.durationMs,
-      fallback: false
+      fallback: false,
+      schemaRepair: result.schemaRepair,
+      cached: result.cached,
+      tokenOptimization: result.tokenOptimization
     };
   } catch (err) {
     if (!config.ai.fallbackEnabled || !fallbackAI.shouldUseFallback(err)) throw err;
@@ -41,7 +55,7 @@ async function generateMCQOrFallback({ prompt, gameType, dimension, model }) {
     const parsed = mcqQuestionsSchema.parse({ questions: fallback.questions });
     return {
       questions: parsed.questions,
-      model: 'local-fallback',
+      model: 'local-mock',
       durationMs: 0,
       fallback: true,
       fallbackReason: err.message
@@ -62,7 +76,12 @@ router.post('/generate', validate(mcqGenerateSchema), async (req, res, next) => 
         model: result.model,
         durationMs: result.durationMs,
         fallback: result.fallback,
-        fallbackReason: result.fallbackReason
+        fallbackReason: result.fallbackReason,
+        mode: config.ai.mode,
+        tokenOptimized: result.tokenOptimized,
+        schemaRepair: result.schemaRepair,
+        cached: result.cached,
+        tokenOptimization: result.tokenOptimization
       }
     });
   } catch (err) {

@@ -9,6 +9,14 @@ const ENGINE_CAPABILITIES = Object.freeze({
   schemaVersion: 1,
   assetTypes: ['image', 'spritesheet', 'atlas', 'tilemap', 'gltf', 'audio', 'json', 'text', 'arrayBuffer'],
   meshShapes: ['box', 'sphere', 'plane', 'cylinder', 'cone', 'torus'],
+  modelComponent: {
+    assetKey: 'must match a top-level gltf asset key',
+    positionOffset: 'local Vec3 offset',
+    rotationOffset: 'local Euler Vec3 in radians',
+    scale: 'local Vec3 scale',
+    castShadow: 'boolean',
+    receiveShadow: 'boolean'
+  },
   colliderShapes: ['cuboid', 'ball', 'capsule'],
   systems: ['physicsSync', 'camera', 'behavior', 'tween', 'spawner', 'ui', 'audio'],
   triggers: ['sceneStart', 'inputPressed', 'inputDown', 'inputReleased', 'keyDown', 'keyUp', 'collision', 'stateChange', 'timer', 'event'],
@@ -46,7 +54,8 @@ CRITICAL OUTPUT FORMAT:
 - Do not emit the old prototype format: no metadata.gameTitle, no gameConfig, no free JavaScript code blocks.
 - Do not generate JavaScript, TypeScript, HTML, CSS, shader code, or unsafe script strings.
 - Only use the capabilities listed below.
-- Keep games browser-playable with primitive meshes unless the prompt explicitly asks for existing assets.
+- Keep games browser-playable with primitive meshes when no useful existing asset is supplied.
+- When existing assets are supplied, use only those asset IDs/URLs and never invent asset paths.
 - If the user's game idea asks for a feature not supported yet, approximate it with supported primitives and explain the limitation in metadata.description.
 
 SUPPORTED CAPABILITIES:
@@ -84,7 +93,7 @@ REQUIRED TOP-LEVEL SHAPE:
 
 MINIMUM PLAYABILITY RULES:
 - Include at least one playable "main" scene.
-- Include a player entity with key "player", tag "player", a mesh, a dynamic rigidBody, and cameraTarget.
+- Include a player entity with key "player", tag "player", either mesh or model, a dynamic rigidBody, and cameraTarget.
 - Include a static ground/platform with a collider.
 - Include inputBindings for movement and at least one action:
   moveLeft -> ["ArrowLeft", "KeyA"]
@@ -97,6 +106,9 @@ MINIMUM PLAYABILITY RULES:
 
 RUNTIME NOTES:
 - Gravity uses Y-up 3D coordinates; downward gravity is negative Y.
+- GLB/GLTF assets must be declared in top-level assets with type "gltf", then placed with entity.model.assetKey.
+- Model visuals are separate from physics. Use primitive rigidBody colliders for collisions.
+- Do not put both mesh and model on the same entity unless the mesh is intentionally unused fallback; prefer model + rigidBody for asset visuals.
 - Colliders use halfExtents for cuboids.
 - Sensor collectibles should use colliderOptions: { "sensor": true }.
 - To remove a collided collectible/hazard, use target "collisionOther".
@@ -132,14 +144,42 @@ function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function buildEngineGenerationPrompt({ prompt }) {
+function buildEngineGenerationPrompt({ prompt, brief = null, assetCandidates = [], assetManifest = null }) {
   const palette = pick(PALETTE_OPTIONS);
   const hint = pick(GENRE_HINTS);
   const seed = Math.floor(Math.random() * 9000) + 1000;
+  const compactAssets = assetCandidates.map(compactAssetForPrompt);
 
-  return [
+  const parts = [
     `USER GAME IDEA: ${prompt}`,
     '',
+  ];
+
+  if (brief) {
+    parts.push('ACCEPTED GAME BRIEF JSON:', JSON.stringify(brief, null, 2), '');
+  }
+
+  if (compactAssets.length > 0) {
+    parts.push(
+      'AVAILABLE EXISTING ASSETS:',
+      JSON.stringify(compactAssets, null, 2),
+      '',
+      'ASSET USAGE RULES:',
+      '- You may use zero or more existing assets, but only from AVAILABLE EXISTING ASSETS.',
+      '- If you use an asset, copy its id into assets[].key and entity.model.assetKey or sprite.assetKey.',
+      '- Copy its publicPath exactly into assets[].url.',
+      '- For GLB/GLTF assets, assets[].type must be "gltf".',
+      '- Prefer GLB/GLTF for 3D characters, props, coins, platforms, hazards, and decorations.',
+      '- Do not use FBX, OBJ, MTL, or any asset not listed above.',
+      ''
+    );
+  }
+
+  if (assetManifest) {
+    parts.push('RUNTIME ASSET MANIFEST CANDIDATES:', JSON.stringify(assetManifest, null, 2), '');
+  }
+
+  parts.push(
     'Generate one complete GAME_ENGINE GameDefinition JSON object.',
     '',
     'DIVERSITY REQUIREMENTS (apply all of these):',
@@ -152,16 +192,32 @@ function buildEngineGenerationPrompt({ prompt }) {
     '',
     'Prefer simple, robust mechanics over complex unsupported features.',
     'Return valid JSON only.'
-  ].join('\n');
+  );
+
+  return parts.join('\n');
 }
 
-function buildEngineCorrectionPrompt({ originalPrompt, validationReason }) {
+function buildEngineCorrectionPrompt({ originalPrompt, validationReason, brief = null, assetCandidates = [], assetManifest = null }) {
   return [
-    buildEngineGenerationPrompt({ prompt: originalPrompt }),
+    buildEngineGenerationPrompt({ prompt: originalPrompt, brief, assetCandidates, assetManifest }),
     '',
     `PREVIOUS ATTEMPT FAILED GAME_ENGINE VALIDATION: ${validationReason}`,
     'Fix the JSON so it validates and remains playable. Return JSON only.'
   ].join('\n');
+}
+
+function compactAssetForPrompt(asset) {
+  return {
+    id: asset.id,
+    name: asset.name,
+    type: asset.type,
+    format: asset.format,
+    publicPath: asset.publicPath,
+    category: asset.category,
+    subcategory: asset.subcategory,
+    tags: (asset.tags || []).slice(0, 10),
+    engineCompatibility: asset.engineCompatibility || []
+  };
 }
 
 module.exports = {

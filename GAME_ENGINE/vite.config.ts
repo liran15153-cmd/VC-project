@@ -6,6 +6,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   root: resolve(__dirname, 'examples'),
+  publicDir: resolve(__dirname, '..', 'public'),
   resolve: {
     alias: {
       '@core': resolve(__dirname, 'src/core'),
@@ -22,11 +23,16 @@ export default defineConfig({
     exclude: ['@dimforge/rapier3d-compat'],
   },
   server: {
-    port: 5173,
+    port: 5175,
+    strictPort: true,
     open: true,
   },
   build: {
     rollupOptions: {
+      input: {
+        index: resolve(__dirname, 'examples', 'index.html'),
+        preview: resolve(__dirname, 'examples', 'preview.html'),
+      },
       output: {
         manualChunks(id) {
           if (id.includes('node_modules/three')) return 'three';

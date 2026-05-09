@@ -20,7 +20,9 @@ async function boot() {
     logger.info('');
     logger.info('Endpoints:');
     logger.info('  POST   /api/mcq/generate');
+    logger.info('  POST   /api/brief/generate');
     logger.info('  POST   /api/engine/generate');
+    logger.info('  POST   /api/engine/from-brief');
     logger.info('  POST   /api/generate-game');
     logger.info('  POST   /api/edit-game');
   });

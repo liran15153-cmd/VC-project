@@ -12,6 +12,7 @@ const { getGameSystemPrompt } = require('../services/systemPrompts');
 const { buildGameHTML } = require('../services/templateBuilder');
 const { buildAssetManifest } = require('../services/assetService');
 const fallbackAI = require('../services/fallbackAIService');
+const { shouldUseMockForTask } = require('../services/aiModeService');
 const config = require('../config/env');
 const logger = require('../utils/logger');
 const { GENERATION } = require('../config/constants');
@@ -77,6 +78,20 @@ function validateFallbackGame(gameJSON, expectedDimension) {
 }
 
 async function generateGameOrFallback({ prompt, answers, gameType, dimension, userPrompt, model }) {
+  if (shouldUseMockForTask('game-json', { prompt, answers, gameType, dimension })) {
+    const gameJSON = validateFallbackGame(
+      fallbackAI.generateGame({ prompt, answers, gameType, dimension }),
+      dimension
+    );
+    return {
+      gameJSON,
+      model: 'local-mock',
+      durationMs: 0,
+      attempts: 0,
+      fallback: false
+    };
+  }
+
   try {
     const result = await generateWithRetries({
       systemPrompt: getGameSystemPrompt(dimension),
@@ -105,6 +120,20 @@ async function generateGameOrFallback({ prompt, answers, gameType, dimension, us
 }
 
 async function editGameOrFallback({ sourceGameJSON, editPrompt, userPrompt, model, dimension }) {
+  if (shouldUseMockForTask('game-json-edit', { prompt: editPrompt, dimension })) {
+    const gameJSON = validateFallbackGame(
+      fallbackAI.editGame({ gameJSON: sourceGameJSON, editPrompt }),
+      dimension
+    );
+    return {
+      gameJSON,
+      model: 'local-mock',
+      durationMs: 0,
+      attempts: 0,
+      fallback: false
+    };
+  }
+
   try {
     const result = await generateWithRetries({
       systemPrompt: getGameSystemPrompt(dimension),
@@ -158,6 +187,7 @@ router.post('/generate-game', validate(generateGameSchema), async (req, res, nex
       assetManifest,
       meta: {
         provider: config.ai.provider,
+        mode: config.ai.mode,
         model: result.model,
         durationMs: totalDurationMs,
         attempts: result.attempts,
@@ -197,6 +227,7 @@ router.post('/edit-game', validate(editGameSchema), async (req, res, next) => {
       assetManifest,
       meta: {
         provider: config.ai.provider,
+        mode: config.ai.mode,
         model: result.model,
         durationMs: totalDurationMs,
         attempts: result.attempts,

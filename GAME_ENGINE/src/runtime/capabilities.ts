@@ -8,6 +8,12 @@ export const ENGINE_CAPABILITIES = Object.freeze({
   schemaVersion: 1,
   assetTypes: ['image', 'spritesheet', 'atlas', 'tilemap', 'gltf', 'audio', 'json', 'text', 'arrayBuffer'],
   meshShapes: ['box', 'sphere', 'plane', 'cylinder', 'cone', 'torus'],
+  modelComponent: {
+    assetKey: 'must match a top-level gltf asset key',
+    positionOffset: 'local Vec3 offset',
+    rotationOffset: 'local Euler Vec3 in radians',
+    scale: 'local Vec3 scale',
+  },
   colliderShapes: ['cuboid', 'ball', 'capsule'],
   systems: ['physicsSync', 'camera', 'behavior', 'tween', 'spawner', 'ui', 'audio'],
   triggers: ['sceneStart', 'inputPressed', 'inputDown', 'inputReleased', 'keyDown', 'keyUp', 'collision', 'stateChange', 'timer', 'event'],

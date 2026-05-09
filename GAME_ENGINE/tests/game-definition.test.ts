@@ -85,6 +85,45 @@ describe('GameDefinition schema', () => {
     expect(definition.scenes[0].lights[0].type).toBe('ambient');
   });
 
+  it('accepts model-backed entities when the GLB asset is declared', () => {
+    const definition = parseGameDefinition({
+      metadata: { title: 'Model Preview' },
+      assets: [{ key: 'crate-model', type: 'gltf', url: '/assets/library/kenney-platformer-kit/models/glb-format/crate.glb' }],
+      scenes: [
+        {
+          key: 'main',
+          entities: [
+            {
+              key: 'crate',
+              model: {
+                assetKey: 'crate-model',
+                positionOffset: { x: 0, y: -0.5, z: 0 },
+                scale: { x: 1.2, y: 1.2, z: 1.2 },
+              },
+              rigidBody: { type: 'static', collider: { shape: 'cuboid' } },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(definition.scenes[0].entities[0].model?.assetKey).toBe('crate-model');
+  });
+
+  it('rejects model-backed entities when the asset is missing', () => {
+    expect(() =>
+      parseGameDefinition({
+        metadata: { title: 'Broken Model Preview' },
+        scenes: [
+          {
+            key: 'main',
+            entities: [{ key: 'crate', model: { assetKey: 'missing-model' } }],
+          },
+        ],
+      }),
+    ).toThrow(/missing model asset/i);
+  });
+
   it('rejects spawners that reference missing prefabs', () => {
     expect(() =>
       parseGameDefinition({

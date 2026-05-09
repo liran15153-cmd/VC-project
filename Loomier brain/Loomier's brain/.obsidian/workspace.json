@@ -1,0 +1,226 @@
+{
+  "main": {
+    "id": "1a54254e6518e68b",
+    "type": "split",
+    "children": [
+      {
+        "id": "1bdbba0b8efd728e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "06a943e627f35d8c",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "022f6a212e354385",
+    "type": "split",
+    "children": [
+      {
+        "id": "473a894b1f585888",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "80a163fbc13e86ed",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "e8b01b2f1a4b7d59",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "544dd43314eba16a",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "f3723e221298258c",
+    "type": "split",
+    "children": [
+      {
+        "id": "6c8473fe6836948a",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "fba19a2140d6ec98",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "AGENTS.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for AGENTS"
+            }
+          },
+          {
+            "id": "df8a54eebe25e48c",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "AGENTS.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from AGENTS"
+            }
+          },
+          {
+            "id": "1149ed368adf823f",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "2939f60c6e34215a",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "509bf7c9df8049f8",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "AGENTS.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of AGENTS"
+            }
+          }
+        ],
+        "currentTab": 3
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false,
+      "workspaces:Manage workspace layouts": false
+    }
+  },
+  "active": "06a943e627f35d8c",
+  "lastOpenFiles": [
+    "docs/vision.md",
+    "Vision/platform-vision.md",
+    "HOME.md",
+    "Agents/05-ui-ux-agent.md",
+    "ARCHITECTURE_UPDATED.md",
+    "docs/adr/ADR-002-hybrid-runtime.md",
+    "Architecture/manifest-format.md",
+    "CLAUDE.md",
+    "docs/adr/ADR-003-ai-adapters.md",
+    "STATUS.md",
+    "docs/agents.md",
+    "knowledge/agent-autonomy-lessons.md",
+    "Agents/01-game-design-agent.md",
+    "Untitled 1.canvas",
+    "Untitled.canvas",
+    "NEXT.md",
+    "DECISIONS.md",
+    "Systems/hybrid-runtime.md",
+    "knowledge/open-questions.md",
+    "knowledge/ai-prompts.md",
+    "Agents/14-world-building-agent.md",
+    "Vision",
+    "Architecture/overview.md",
+    "Workflows/game-creation-flow.md",
+    "Workflows",
+    "Memory/persistent-memory-architecture.md",
+    "Memory",
+    "Systems",
+    "Agents/15-orchestrator.md",
+    "Agents/09-to-14-remaining-agents.md",
+    "Agents/08-export-publishing-agent.md",
+    "Agents/07-qa-testing-agent.md",
+    "Agents",
+    "Architecture",
+    "docs/adr",
+    "docs",
+    "knowledge",
+    "Untitled 3.canvas",
+    "Untitled 2.canvas"
+  ]
+}

@@ -19,6 +19,7 @@ Local URL: `http://localhost:3000`
 ```text
 GET  /api/health
 POST /api/mcq/generate
+POST /api/brief/generate
 POST /api/generate-game
 POST /api/edit-game
 POST /api/engine/generate
@@ -48,36 +49,64 @@ Those concerns should be implemented with Supabase Auth, Postgres tables with RL
 
 ## Environment
 
-Copy `.env.example` to `.env` and set one AI provider key:
+Copy `.env.example` to `.env` and configure OpenRouter:
 
 ```text
-AI_PROVIDER=openrouter
+AI_MODE=real
 OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=openai/gpt-5-mini
+AI_GENERATION_TIMEOUT_MS=90000
 ```
 
-or:
+`AI_MODE` controls the Questions Agent / Game Brief Agent flow:
 
 ```text
-AI_PROVIDER=openai
-OPENAI_API_KEY=...
+mock   = deterministic local simulator for development and tests
+real   = OpenRouter-first intelligence layer
+hybrid = local/mock for predictable cheap steps, OpenRouter for reasoning-heavy brief work
 ```
+
+OpenRouter requests are server-side only. Never expose `OPENROUTER_API_KEY` to the frontend.
 
 In production, do not use `CORS_ORIGINS=*`.
+
+## Real AI + Hybrid Flow
+
+Questions and Game Brief generation now use OpenRouter as the primary reasoning layer in `real` mode. MockAI/local fallback is only for local development, automated tests, emergency fallback, token-saving hybrid shortcuts, and simple placeholders.
+
+Hybrid mode saves tokens by:
+
+- using deterministic local questions for very simple prompts with known dimension and genre
+- caching repeated JSON requests briefly in memory
+- minimizing prompts and trimming oversized context before LLM calls
+- retrying invalid JSON once with a repair prompt instead of repeatedly sending the full flow
+- keeping Game Brief prompts focused instead of sending whole conversation histories
+- using a configurable OpenRouter timeout so slow JSON/repair responses do not fail at the old 30s limit
+
+`POST /api/brief/generate` creates a planning-only Game Brief. It does not generate full game code.
 
 ## Validation
 
 AI output goes through:
 
 1. JSON response parsing.
-2. Loose schema validation.
-3. Dimension match validation.
-4. Strict 2D/3D game schema validation.
-5. Retry loop up to `GENERATION.MAX_RETRIES`.
-6. Server-side HTML build.
+2. One JSON repair retry if parsing fails.
+3. Zod schema validation.
+4. One schema repair retry if validation fails.
+5. Deterministic local fallback only when configured and appropriate.
+6. For legacy game generation only: loose/strict game schema validation and server-side HTML build.
 
 ## Testing
 
 ```bash
 npm run check
 npm test
+```
+
+Useful local modes:
+
+```bash
+AI_MODE=mock npm test
+AI_MODE=real npm start
+AI_MODE=hybrid npm start
 ```
