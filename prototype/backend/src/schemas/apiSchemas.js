@@ -21,6 +21,7 @@ const editPromptSchema = z.string()
   .max(GENERATION.MAX_EDIT_PROMPT_LENGTH, `editPrompt too long (max ${GENERATION.MAX_EDIT_PROMPT_LENGTH} chars)`);
 
 const modelSchema = z.string().trim().min(1).max(120).optional();
+const briefDimensionEnum = z.enum(['2D', '3D', 'hybrid']);
 
 const systemPromptSchema = z.string()
   .min(1, 'systemPrompt cannot be empty')
@@ -127,10 +128,22 @@ const engineFromBriefGenerateSchema = z.object({
   prompt: promptSchema.optional(),
   answers: z.record(z.string()).optional().default({}),
   gameType: allGenresEnum.optional(),
-  dimension: dimensionEnum.optional(),
+  dimension: briefDimensionEnum.optional(),
   brief: gameBriefContentSchema,
   selectedAssetIds: z.array(z.string().min(1).max(180)).max(20).optional().default([]),
-  model: modelSchema
+  model: modelSchema,
+  debug: z.boolean().optional().default(false)
+});
+
+const assetResolveSchema = z.object({
+  prompt: promptSchema.optional(),
+  answers: z.record(z.string()).optional().default({}),
+  gameType: allGenresEnum.optional(),
+  dimension: briefDimensionEnum.optional(),
+  brief: gameBriefContentSchema,
+  selectedAssetIds: z.array(z.string().min(1).max(180)).max(20).optional().default([]),
+  debug: z.boolean().optional().default(false),
+  strictMissing: z.boolean().optional()
 });
 
 module.exports = {
@@ -142,6 +155,7 @@ module.exports = {
   mcqGenerateSchema,
   gameBriefGenerateSchema,
   engineFromBriefGenerateSchema,
+  assetResolveSchema,
   generateGameSchema,
   editGameSchema,
   mcqQuestionsSchema,

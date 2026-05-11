@@ -16,3 +16,5 @@ dist/
 output/
 prototype/frontend-test/generated-*.html
 public/generated-games/
+
+brain/

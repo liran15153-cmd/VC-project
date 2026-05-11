@@ -2,7 +2,7 @@
    Schema-Validated JSON Agent Helper
    ========================================================================= */
 
-const { generateJSON } = require('./openaiService');
+const { generateJSON, generateJSONWithSingleTool } = require('./openaiService');
 const { ExternalAPIError } = require('../utils/errors');
 const config = require('../config/env');
 
@@ -74,5 +74,6 @@ async function generateValidatedJSON({
 
 module.exports = {
   generateValidatedJSON,
+  generateJSONWithSingleTool,
   formatZodIssues
 };

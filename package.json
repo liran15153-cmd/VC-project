@@ -20,6 +20,9 @@
     "import:assets": "node scripts/import-assets.js",
     "validate:assets": "node scripts/validate-assets.js",
     "assets:summary": "node scripts/assets-summary.js",
+    "assets:pack-summary": "node scripts/assets-pack-summary.js",
+    "assets:eval": "node scripts/assets-eval.js",
+    "assets:benchmark": "node scripts/assets-benchmark.js",
     "verify": "npm run engine:verify && npm run backend:check && npm run backend:test"
   }
 }

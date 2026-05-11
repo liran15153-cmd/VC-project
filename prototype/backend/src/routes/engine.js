@@ -48,11 +48,13 @@ router.post('/generate', validate(engineGenerateSchema), async (req, res, next) 
 
 router.post('/from-brief', validate(engineFromBriefGenerateSchema), async (req, res, next) => {
   try {
-    const result = await generateEngineGameFromBrief(req.body);
+    const debug = req.body.debug || req.query.debug === 'true' || req.query.debug === '1';
+    const result = await generateEngineGameFromBrief({ ...req.body, debug });
 
     res.json({
       brief: result.brief,
       selectedAssets: result.selectedAssets,
+      assetResolution: result.assetResolution,
       assetManifest: result.assetManifest,
       gameDefinition: result.gameDefinition,
       meta: {
@@ -61,8 +63,10 @@ router.post('/from-brief', validate(engineFromBriefGenerateSchema), async (req, 
         durationMs: result.durationMs,
         attempts: result.attempts,
         selectedAssetCount: result.selectedAssets.length,
+        toolCalling: result.toolCalling,
         persistence: 'supabase_pending'
-      }
+      },
+      ...(debug ? { debug: { toolCalling: result.toolCalling } } : {})
     });
   } catch (err) {
     next(toUserFacingGenerationError(err));

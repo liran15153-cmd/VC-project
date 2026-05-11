@@ -37,12 +37,20 @@ const envSchema = z.object({
 
   AI_MODE: z.enum(['mock', 'real', 'hybrid']).default('real'),
   AI_FALLBACK_ENABLED: envBoolean.default(true),
+  AI_TOOL_CALLING_ENABLED: envBoolean.default(true),
   AI_MAX_JSON_OUTPUT_TOKENS: z.coerce.number().int().min(512).max(60000).default(12000),
   AI_MAX_TEXT_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(60000).default(4000),
   AI_HARD_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(512).max(60000).default(20000),
   AI_MAX_INPUT_CHARS: z.coerce.number().int().min(1000).max(50000).default(8000),
   AI_CACHE_TTL_MS: z.coerce.number().int().min(0).default(300000),
   AI_GENERATION_TIMEOUT_MS: z.coerce.number().int().min(5000).max(180000).default(90000),
+  ASSET_MAX_PACKS_TO_SEARCH: z.coerce.number().int().min(1).max(200).default(8),
+  ASSET_MAX_CANDIDATES_BEFORE_SCORING: z.coerce.number().int().min(10).max(5000).default(240),
+  ASSET_SHORTLIST_PER_ROLE: z.coerce.number().int().min(1).max(50).default(12),
+  ASSET_STRICT_MISSING_THRESHOLD: z.coerce.number().min(0).max(1).default(0.55),
+  ASSET_AI_RERANK_ENABLED: envBoolean.default(false),
+  ASSET_AI_RERANK_MAX_CANDIDATES: z.coerce.number().int().min(5).max(15).default(10),
+  ASSET_AI_RERANK_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(8000),
 
   OPENROUTER_API_KEY: z.string().min(10, 'OPENROUTER_API_KEY is required and must be valid').optional(),
   OPENROUTER_MODEL: z.string().min(1).optional(),
@@ -124,6 +132,7 @@ module.exports = {
     enabled: parsed.AI_MODE === 'mock' || !!selectedApiKey,
     realEnabled: !!selectedApiKey,
     fallbackEnabled: parsed.AI_FALLBACK_ENABLED,
+    toolCallingEnabled: parsed.AI_TOOL_CALLING_ENABLED,
     maxJsonOutputTokens: parsed.AI_MAX_JSON_OUTPUT_TOKENS,
     maxTextOutputTokens: parsed.AI_MAX_TEXT_OUTPUT_TOKENS,
     hardMaxOutputTokens: parsed.AI_HARD_MAX_OUTPUT_TOKENS,
@@ -152,6 +161,15 @@ module.exports = {
     default: parsed.RATE_LIMIT_DEFAULT
   },
   bodyLimit: parsed.BODY_LIMIT,
+  assets: {
+    maxPacksToSearch: parsed.ASSET_MAX_PACKS_TO_SEARCH,
+    maxCandidatesBeforeScoring: parsed.ASSET_MAX_CANDIDATES_BEFORE_SCORING,
+    shortlistPerRole: parsed.ASSET_SHORTLIST_PER_ROLE,
+    strictMissingThreshold: parsed.ASSET_STRICT_MISSING_THRESHOLD,
+    aiRerankEnabled: parsed.ASSET_AI_RERANK_ENABLED,
+    aiRerankMaxCandidates: parsed.ASSET_AI_RERANK_MAX_CANDIDATES,
+    aiRerankTimeoutMs: parsed.ASSET_AI_RERANK_TIMEOUT_MS
+  },
   SUPPORTED_MODELS: selectedSupportedModels,
   OPENROUTER_MODELS
 };

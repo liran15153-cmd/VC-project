@@ -168,6 +168,168 @@ async function generateText({ prompt, systemPrompt, model, generationConfig = {}
   }
 }
 
+async function generateJSONWithSingleTool({
+  prompt,
+  systemPrompt,
+  model,
+  generationConfig = {},
+  tools = [],
+  toolHandlers = {},
+  toolTimeoutMs = config.ai.generationTimeoutMs,
+  maxPromptChars = config.ai.maxInputChars,
+  chatCompletionCreate = null
+}) {
+  const modelName = resolveModel(model);
+  const start = Date.now();
+  const ai = chatCompletionCreate ? null : getClient();
+  const createCompletion = chatCompletionCreate || ((request) => ai.chat.completions.create(request));
+  const optimizedPrompt = compressForLLM(prompt, maxPromptChars);
+  const optimizedSystem = compressForLLM(systemPrompt || '', Math.max(1000, Math.floor(maxPromptChars / 2)));
+  const messages = buildMessages({ systemPrompt: optimizedSystem.text, prompt: optimizedPrompt.text });
+  const firstRequest = {
+    model: modelName,
+    messages,
+    tools,
+    tool_choice: 'auto',
+    response_format: { type: 'json_object' }
+  };
+  applyGenerationConfig(firstRequest, generationConfig, 'json');
+
+  const debug = {
+    attempted: true,
+    used: false,
+    skippedToolCalls: 0,
+    toolName: null,
+    toolArguments: null,
+    fallbackReason: null
+  };
+
+  let first;
+  try {
+    first = await Promise.race([
+      createCompletion(firstRequest),
+      timeout(config.ai.generationTimeoutMs, `${config.ai.providerLabel} tool request timeout`)
+    ]);
+  } catch (err) {
+    throw new ExternalAPIError(config.ai.providerLabel, `Tool request failed: ${err.message}`);
+  }
+
+  const firstMessage = first?.choices?.[0]?.message || {};
+  const toolCalls = Array.isArray(firstMessage.tool_calls) ? firstMessage.tool_calls : [];
+  if (toolCalls.length === 0) {
+    return {
+      toolUsed: false,
+      fallbackReason: 'model did not call tool',
+      model: first.model || modelName,
+      durationMs: Date.now() - start,
+      provider: config.ai.provider,
+      debug: {
+        ...debug,
+        fallbackReason: 'model did not call tool',
+        promptChars: optimizedPrompt.sentChars,
+        promptCompressed: optimizedPrompt.compressed
+      }
+    };
+  }
+
+  debug.skippedToolCalls = Math.max(0, toolCalls.length - 1);
+  const toolCall = toolCalls[0];
+  const toolName = toolCall?.function?.name;
+  debug.toolName = toolName || null;
+  if (!toolName || !toolHandlers[toolName]) {
+    return toolFallbackResult('unsupported tool requested', first, modelName, start, debug, optimizedPrompt);
+  }
+
+  let args;
+  try {
+    args = JSON.parse(toolCall.function?.arguments || '{}');
+  } catch {
+    return toolFallbackResult('invalid tool arguments JSON', first, modelName, start, debug, optimizedPrompt);
+  }
+
+  debug.toolArguments = args;
+
+  let toolResult;
+  try {
+    toolResult = await Promise.race([
+      Promise.resolve(toolHandlers[toolName](args)),
+      timeout(toolTimeoutMs, `${toolName} timeout`)
+    ]);
+  } catch (err) {
+    return toolFallbackResult(`tool execution failed: ${err.message}`, first, modelName, start, debug, optimizedPrompt);
+  }
+
+  if (toolResult?.tooLarge) {
+    return toolFallbackResult('tool result too large', first, modelName, start, debug, optimizedPrompt, toolResult);
+  }
+
+  const toolContent = typeof toolResult?.content === 'string'
+    ? toolResult.content
+    : JSON.stringify(toolResult?.content || toolResult || {});
+  const finalMessages = [
+    ...messages,
+    {
+      role: 'assistant',
+      content: firstMessage.content || null,
+      tool_calls: [toolCall]
+    },
+    {
+      role: 'tool',
+      tool_call_id: toolCall.id,
+      name: toolName,
+      content: toolContent
+    }
+  ];
+  const finalRequest = {
+    model: modelName,
+    messages: finalMessages,
+    response_format: { type: 'json_object' }
+  };
+  applyGenerationConfig(finalRequest, generationConfig, 'json');
+
+  let final;
+  try {
+    final = await Promise.race([
+      createCompletion(finalRequest),
+      timeout(config.ai.generationTimeoutMs, `${config.ai.providerLabel} final tool response timeout`)
+    ]);
+  } catch (err) {
+    throw new ExternalAPIError(config.ai.providerLabel, `Final tool response failed: ${err.message}`);
+  }
+
+  const finalMessage = final?.choices?.[0]?.message || {};
+  if (Array.isArray(finalMessage.tool_calls) && finalMessage.tool_calls.length > 0) {
+    return toolFallbackResult('recursive tool call requested', final, modelName, start, debug, optimizedPrompt, toolResult);
+  }
+
+  const raw = extractOutputText(final);
+  if (!raw) throw new ExternalAPIError(config.ai.providerLabel, 'Empty response after tool call');
+  const json = await parseOrRepairJSON({
+    raw,
+    ai: { chat: { completions: { create: createCompletion } } },
+    request: finalRequest,
+    modelName,
+    repairMessages: finalMessages
+  });
+
+  return {
+    json,
+    raw,
+    toolUsed: true,
+    toolResult,
+    model: final.model || modelName,
+    durationMs: Date.now() - start,
+    provider: config.ai.provider,
+    debug: {
+      ...debug,
+      used: true,
+      promptChars: optimizedPrompt.sentChars,
+      promptCompressed: optimizedPrompt.compressed,
+      toolResultChars: toolContent.length
+    }
+  };
+}
+
 function buildMessages({ systemPrompt, prompt }) {
   return [
     ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
@@ -175,28 +337,47 @@ function buildMessages({ systemPrompt, prompt }) {
   ];
 }
 
-async function parseOrRepairJSON({ raw, ai, request, modelName, systemPrompt, originalPrompt }) {
+function toolFallbackResult(reason, first, modelName, start, debug, optimizedPrompt, toolResult = null) {
+  return {
+    toolUsed: false,
+    fallbackReason: reason,
+    toolResult,
+    model: first.model || modelName,
+    durationMs: Date.now() - start,
+    provider: config.ai.provider,
+    debug: {
+      ...debug,
+      fallbackReason: reason,
+      promptChars: optimizedPrompt.sentChars,
+      promptCompressed: optimizedPrompt.compressed,
+      toolResultChars: toolResult?.content ? String(toolResult.content).length : undefined
+    }
+  };
+}
+
+async function parseOrRepairJSON({ raw, ai, request, modelName, systemPrompt, originalPrompt, repairMessages = null }) {
   try {
     return extractJSON(raw);
   } catch (err) {
     logger.warn({ raw: raw.substring(0, 500), err: err.message }, 'Failed to parse AI JSON, retrying once with repair prompt');
   }
 
+  const repairPrompt = [
+    originalPrompt,
+    '',
+    'The previous model response was invalid JSON.',
+    'Repair it into exactly one valid JSON object that satisfies the original task.',
+    'Return JSON only. No markdown, no prose.',
+    '',
+    'INVALID RESPONSE:',
+    raw.slice(0, config.ai.maxInputChars)
+  ].filter(Boolean).join('\n');
+
   const repairRequest = {
     ...request,
-    messages: buildMessages({
-      systemPrompt,
-      prompt: [
-        originalPrompt,
-        '',
-        'The previous model response was invalid JSON.',
-        'Repair it into exactly one valid JSON object that satisfies the original task.',
-        'Return JSON only. No markdown, no prose.',
-        '',
-        'INVALID RESPONSE:',
-        raw.slice(0, config.ai.maxInputChars)
-      ].join('\n')
-    })
+    messages: repairMessages
+      ? [...repairMessages, { role: 'user', content: repairPrompt }]
+      : buildMessages({ systemPrompt, prompt: repairPrompt })
   };
 
   let repaired;
@@ -274,4 +455,4 @@ function clearCache() {
   responseCache.clear();
 }
 
-module.exports = { generateJSON, generateText, extractJSON, clearCache };
+module.exports = { generateJSON, generateText, generateJSONWithSingleTool, extractJSON, clearCache };

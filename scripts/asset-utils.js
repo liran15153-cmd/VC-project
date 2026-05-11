@@ -25,13 +25,15 @@ const EXTENSION_TYPE = new Map([
   ['.wav', 'audio'],
   ['.ogg', 'audio'],
   ['.json', 'json'],
+  ['.xml', 'atlas'],
+  ['.tmx', 'tilemap'],
   ['.tmj', 'tilemap'],
   ['.tsx', 'tilemap'],
   ['.txt', 'text'],
   ['.md', 'text']
 ]);
 
-const STOP_TAGS = new Set(['format', 'models', 'model', 'textures', 'texture', 'previews', 'preview', 'assets', 'asset', 'library']);
+const STOP_TAGS = new Set(['format', 'models', 'model', 'textures', 'texture', 'previews', 'preview', 'assets', 'asset', 'library', 'png']);
 
 function toPosixPath(value) {
   return value.replace(/\\/g, '/');
@@ -100,8 +102,11 @@ function writeRegistry(registry, registryPath = REGISTRY_PATH) {
 function inferType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   const lower = filePath.toLowerCase();
+  if (ext === '.xml') return isTextureAtlasXml(filePath) ? 'atlas' : null;
+  if (ext === '.tmx') return 'tilemap';
   if (ext === '.json' && lower.includes('atlas')) return 'atlas';
   if ((ext === '.json' || ext === '.tmj') && (lower.includes('tilemap') || lower.includes('map'))) return 'tilemap';
+  if (['.png', '.jpg', '.jpeg', '.webp'].includes(ext) && /(spritesheets?|tilemap|tilesheet|sheet)/.test(lower)) return 'spritesheet';
   if (EXTENSION_TYPE.has(ext)) return EXTENSION_TYPE.get(ext);
   return null;
 }
@@ -115,44 +120,135 @@ function inferEngines(type, format) {
   return [];
 }
 
-function inferCategory(parts, fileName) {
+function inferCategory(parts, fileName, type = null) {
   const source = [...parts, fileName.replace(/\.[^.]+$/, '')].map((part) => slugify(part)).filter(Boolean);
   const joined = source.join(' ');
+  const base = slugify(fileName.replace(/\.[^.]+$/, ''));
 
+  if (type === 'text' && /(license|readme|credits|attribution|spritesheetinfo)/.test(base)) return 'misc';
+  if (/(license|readme|credits|attribution)/.test(base)) return 'misc';
+  if (['image', 'spritesheet'].includes(type) && /(^preview|^sample)/.test(base)) return 'misc';
+  if (type === 'audio') return 'audio';
+  if (type === 'tilemap') return 'environment';
+  if (/(mobile-controls|controls|highlights|joystick|dpad|button|direction|touch|icons|interface|ui|hud)/.test(joined)) return 'ui';
+  if (/(players|player|character|hero|npc|warrior|archer|oobi|oodi|ooli|oopi|oozi)/.test(joined)) return 'character';
+  if (/(enemies|enemy|monster|creature)/.test(joined)) return 'character';
+  if (/(weapons|weapon|gun|laser|bullet|projectile|cannon|rocket)/.test(joined)) return 'prop';
+  if (/(roguelike|rpg|dungeon|tilemap|tilesheet|spritesheet|sheet|map)/.test(joined)) return 'environment';
   if (/(character|player|hero|enemy|npc|warrior|archer|oobi|oodi|ooli|oopi|oozi)/.test(joined)) return 'character';
   if (/(coin|key|heart|star|jewel|collectible|pickup)/.test(joined)) return 'collectible';
   if (/(spike|trap|saw|hazard|bomb)/.test(joined)) return 'hazard';
   if (/(button|bar|paper|ui|ribbon|avatar|icon)/.test(joined)) return 'ui';
-  if (/(music|sound|audio|sfx)/.test(joined)) return 'audio';
   if (/(tree|grass|forest|snow|rock|stone|platform|block|ground|tile|environment|fence|crate|barrel|ladder|pipe|plant|flower|mushroom|hedge)/.test(joined)) {
     return 'environment';
   }
   return 'misc';
 }
 
-function inferSubcategory(category, parts, fileName) {
+function inferSubcategory(category, parts, fileName, type = null) {
   const source = [...parts, fileName.replace(/\.[^.]+$/, '')].map((part) => slugify(part)).filter(Boolean);
   const joined = source.join(' ');
 
   if (category === 'environment') {
+    if (type === 'tilemap' || /(tmx|tilemap|map)/.test(joined)) return 'tilemap';
+    if (type === 'spritesheet' || /(spritesheet|tilesheet|sheet)/.test(joined)) return 'tileset';
     if (/(forest|grass|tree|plant|flower|mushroom|hedge)/.test(joined)) return 'flora';
     if (/(snow|ice)/.test(joined)) return 'snow';
     if (/(platform|block|ground|tile|ladder|pipe)/.test(joined)) return 'terrain';
     if (/(rock|stone)/.test(joined)) return 'rocks';
     return 'props';
   }
-  if (category === 'character') return 'playable';
+  if (category === 'character') {
+    if (/(enemy|enemies|monster|creature)/.test(joined)) return 'enemy';
+    if (/(player|players|hero|character)/.test(joined)) return 'playable';
+    return 'character';
+  }
+  if (category === 'prop' && /(weapon|weapons|gun|laser|bullet|projectile|cannon|rocket)/.test(joined)) return 'weapon';
   if (category === 'collectible') return 'pickup';
   if (category === 'hazard') return 'obstacle';
-  if (category === 'ui') return 'interface';
-  if (category === 'audio') return 'sfx';
+  if (category === 'ui') {
+    if (/(joystick)/.test(joined)) return 'joystick';
+    if (/(dpad|direction)/.test(joined)) return 'dpad';
+    if (/(button)/.test(joined)) return 'button';
+    if (/(touch|controls|mobile-controls)/.test(joined)) return 'controls';
+    return 'interface';
+  }
+  if (category === 'audio') return /(music|theme|loop)/.test(joined) ? 'music' : 'sfx';
   return 'general';
 }
 
 function inferTags(parts, fileName, type, category, subcategory, engineCompatibility) {
   const nameParts = fileName.replace(/\.[^.]+$/, '').split(/[^a-zA-Z0-9]+/);
-  const raw = [...parts, ...nameParts, type, category, subcategory, ...engineCompatibility];
+  const roleHints = inferRoleHints(parts, fileName, category, subcategory, type);
+  const raw = [...parts, ...nameParts, type, category, subcategory, ...roleHints, ...engineCompatibility];
   return [...new Set(raw.map(slugify).filter((tag) => tag && tag.length > 1 && !STOP_TAGS.has(tag)))].sort();
+}
+
+function inferRoleHints(parts, fileName, category, subcategory, type = null) {
+  const source = [...parts, fileName.replace(/\.[^.]+$/, '')].map((part) => slugify(part)).filter(Boolean);
+  const joined = source.join(' ');
+  const roles = [];
+
+  if (category === 'character' && subcategory === 'playable') roles.push('player');
+  if (category === 'character' && subcategory === 'enemy') roles.push('enemy');
+  if (category === 'collectible') roles.push('collectible');
+  if (category === 'hazard') roles.push('hazard');
+  if (category === 'audio') roles.push('audio');
+  if (category === 'ui') roles.push('ui');
+  if (category === 'prop' && subcategory === 'weapon') roles.push('weapon', 'prop');
+  if (category === 'environment') roles.push('environment');
+  if (category === 'environment' && (subcategory === 'terrain' || subcategory === 'tileset' || /(platform|block|ground|tile)/.test(joined))) roles.push('platform', 'terrain');
+  if (subcategory === 'tilemap' || type === 'tilemap') roles.push('tilemap');
+  if (/(button|dpad|joystick|touch|controls|direction)/.test(joined)) roles.push('controls');
+  if (/(background|cloud|sky|desert|hills|trees|mushrooms)/.test(joined)) roles.push('background');
+  if (/(coin|gem|jewel|heart|star|key)/.test(joined)) roles.push('collectible');
+  if (/(spike|trap|saw|bomb|hurt|damage)/.test(joined)) roles.push('hazard');
+  if (/(jump|select|coin|hurt|bump|throw|explosion|shoot|laser|fall|win|lose)/.test(joined) && category === 'audio') roles.push('sfx');
+
+  return [...new Set(roles)];
+}
+
+function inferVariant(parts, fileName) {
+  const source = [...parts, fileName.replace(/\.[^.]+$/, '')].map((part) => slugify(part)).filter(Boolean);
+  const joined = source.join(' ');
+  if (/(large|double|2x)/.test(joined)) return 'large';
+  if (/(default|normal)/.test(joined)) return 'default';
+  if (/(magenta)/.test(joined)) return 'magenta';
+  if (/(transparent)/.test(joined)) return 'transparent';
+  if (/(packed)/.test(joined)) return 'packed';
+  return null;
+}
+
+function inferScale(parts, fileName) {
+  const source = [...parts, fileName.replace(/\.[^.]+$/, '')].map((part) => slugify(part)).filter(Boolean);
+  const joined = source.join(' ');
+  if (/(large|double|2x)/.test(joined)) return '2x';
+  if (/(default|normal)/.test(joined)) return '1x';
+  return null;
+}
+
+function inferAtlasImage(filePath, type) {
+  if (type !== 'atlas') return null;
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.json') return null;
+  if (ext !== '.xml') return null;
+
+  try {
+    const text = fs.readFileSync(filePath, 'utf8');
+    const match = text.match(/<TextureAtlas[^>]+imagePath=["']([^"']+)["']/i);
+    return match ? match[1] : null;
+  } catch (_err) {
+    return null;
+  }
+}
+
+function isTextureAtlasXml(filePath) {
+  try {
+    const text = fs.readFileSync(filePath, 'utf8').slice(0, 4096);
+    return /<TextureAtlas\b/i.test(text);
+  } catch (_err) {
+    return false;
+  }
 }
 
 function getImageDimensions(filePath) {
@@ -228,11 +324,15 @@ module.exports = {
   findLicense,
   getImageDimensions,
   hashFile,
+  inferAtlasImage,
   inferCategory,
   inferEngines,
+  inferRoleHints,
+  inferScale,
   inferSubcategory,
   inferTags,
   inferType,
+  inferVariant,
   listFiles,
   parseArgs,
   readRegistry,

@@ -10,11 +10,15 @@ const {
   findLicense,
   getImageDimensions,
   hashFile,
+  inferAtlasImage,
   inferCategory,
   inferEngines,
+  inferRoleHints,
+  inferScale,
   inferSubcategory,
   inferTags,
   inferType,
+  inferVariant,
   listFiles,
   parseArgs,
   readRegistry,
@@ -41,6 +45,8 @@ const RUNTIME_EXTENSIONS = new Set([
   '.wav',
   '.ogg',
   '.json',
+  '.xml',
+  '.tmx',
   '.tmj',
   '.tsx',
   '.txt',
@@ -107,10 +113,12 @@ function main() {
     fs.copyFileSync(sourcePath, publicFilePath);
 
     const parts = cleanRelDir ? cleanRelDir.split('/') : [];
-    const category = inferCategory(parts, path.basename(sourcePath));
-    const subcategory = inferSubcategory(category, parts, path.basename(sourcePath));
+    const metadataParts = [pack, ...parts];
+    const category = inferCategory(metadataParts, path.basename(sourcePath), type);
+    const subcategory = inferSubcategory(category, metadataParts, path.basename(sourcePath), type);
     const engineCompatibility = inferEngines(type, ext.slice(1));
-    const dimensions = type === 'image' ? getImageDimensions(sourcePath) : null;
+    const dimensions = ['image', 'spritesheet'].includes(type) ? getImageDimensions(sourcePath) : null;
+    const roleHints = inferRoleHints(metadataParts, path.basename(sourcePath), category, subcategory, type);
     const id = slugify([pack, cleanRelDir, fileBase, ext.slice(1)].filter(Boolean).join('-'));
     const filePath = toPosixPath(path.relative(ROOT_DIR, processedPath));
     const publicPath = `/assets/library/${runtimeRelPath}`;
@@ -121,7 +129,14 @@ function main() {
       type,
       category,
       subcategory,
-      tags: inferTags(parts, path.basename(sourcePath), type, category, subcategory, engineCompatibility),
+      tags: inferTags(metadataParts, path.basename(sourcePath), type, category, subcategory, engineCompatibility),
+      pack,
+      sourcePack: pack,
+      sourceRelativePath: relFromSource,
+      roleHints,
+      variant: inferVariant(metadataParts, path.basename(sourcePath)),
+      scale: inferScale(metadataParts, path.basename(sourcePath)),
+      atlasImage: inferAtlasImage(sourcePath, type),
       engineCompatibility,
       filePath,
       publicPath,
