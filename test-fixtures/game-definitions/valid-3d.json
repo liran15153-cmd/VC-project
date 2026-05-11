@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Valid 3D Fixture",
+    "description": "A pure Three.js/Rapier fixture.",
+    "genre": "adventure"
+  },
+  "engine": {
+    "width": 1280,
+    "height": 720,
+    "enable3D": true,
+    "enable2D": false,
+    "enablePhysics": true,
+    "gravity": { "x": 0, "y": -9.81, "z": 0 }
+  },
+  "assets": [
+    {
+      "key": "ship-model",
+      "type": "gltf",
+      "url": "/assets/library/fixtures/ship.glb"
+    }
+  ],
+  "scenes": [
+    {
+      "key": "main",
+      "systems": ["physicsSync", "camera", "behavior"],
+      "lights": [
+        {
+          "type": "ambient",
+          "color": "#ffffff",
+          "intensity": 0.7
+        }
+      ],
+      "entities": [
+        {
+          "key": "ship",
+          "transform": {
+            "position": { "x": 0, "y": 1, "z": 0 },
+            "rotation": { "x": 0, "y": 0, "z": 0, "w": 1 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "model": {
+            "assetKey": "ship-model",
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "rigidBody": {
+            "type": "dynamic",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": { "x": 0.7, "y": 0.4, "z": 1.2 }
+            }
+          },
+          "cameraTarget": {
+            "lerp": 4,
+            "offset": { "x": 0, "y": 5, "z": 10 }
+          }
+        }
+      ]
+    }
+  ],
+  "initialScene": "main"
+}

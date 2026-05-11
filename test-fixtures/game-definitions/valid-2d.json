@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Valid 2D Fixture",
+    "description": "A pure Phaser-compatible 2D fixture.",
+    "genre": "arcade"
+  },
+  "engine": {
+    "width": 960,
+    "height": 540,
+    "enable3D": false,
+    "enable2D": true,
+    "enablePhysics": true,
+    "gravity": { "x": 0, "y": -9.81, "z": 0 }
+  },
+  "state": {
+    "score": 0
+  },
+  "inputBindings": {
+    "jump": ["Space"]
+  },
+  "assets": [
+    {
+      "key": "hero-sprite",
+      "type": "image",
+      "url": "/assets/library/fixtures/hero.png"
+    },
+    {
+      "key": "jump-sound",
+      "type": "audio",
+      "url": "/assets/library/fixtures/jump.wav"
+    }
+  ],
+  "scenes": [
+    {
+      "key": "main",
+      "systems": ["physicsSync", "behavior", "ui", "audio"],
+      "entities": [
+        {
+          "key": "hero",
+          "transform": {
+            "position": { "x": 0, "y": 0, "z": 0 },
+            "rotation": { "x": 0, "y": 0, "z": 0, "w": 1 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "hero-sprite",
+            "x": 120,
+            "y": 320
+          },
+          "rigidBody": {
+            "type": "dynamic",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": { "x": 0.5, "y": 0.5, "z": 0.5 }
+            }
+          }
+        }
+      ],
+      "ui": [
+        {
+          "type": "text",
+          "id": "score",
+          "text": "Score: 0"
+        }
+      ],
+      "audio": [
+        {
+          "trigger": "onJump",
+          "asset": "jump-sound"
+        }
+      ]
+    }
+  ],
+  "initialScene": "main"
+}

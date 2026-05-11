@@ -15,7 +15,8 @@ const {
 } = require('../src/services/engineToolBudgetService');
 const {
   generateEngineGameFromBriefInternal,
-  sanitizeResolveAssetsToolArgs
+  sanitizeResolveAssetsToolArgs,
+  validateGeneratedAssetUse
 } = require('../src/services/engineGenerationService');
 const { generateJSONWithSingleTool } = require('../src/services/openaiService');
 
@@ -171,7 +172,7 @@ function fakeToolAssetResolution(count = 14) {
       assets: selectedAssets.map((asset) => ({ key: asset.id, type: 'gltf', url: asset.publicPath }))
     },
     debug: { queryPlan: { shouldNotLeak: true } },
-    meta: { targetEngine: 'three' }
+    meta: { targetEngine: 'three', runtimeTarget: '3D', primaryEngine: 'three', assetEngines: ['three'] }
   };
 }
 
@@ -293,6 +294,36 @@ test('invalid or oversized tool calls fall back safely', async () => {
   assert.match(result.fallbackReason, /too large/i);
 });
 
+test('asset validation deterministically maps selected asset aliases without allowing unknown assets', () => {
+  const definition = sampleGameDefinition();
+  definition.assets = [{ key: 'Asset 1', type: 'image', url: '/wrong/path.glb' }];
+  definition.scenes[0].entities[0].model = { assetKey: 'Asset 1', scale: { x: 1, y: 1, z: 1 } };
+  delete definition.scenes[0].entities[0].mesh;
+
+  const selected = [{
+    id: 'asset-1',
+    name: 'Asset 1',
+    type: 'gltf',
+    publicPath: '/assets/library/test/asset-1.glb'
+  }];
+  const valid = validateGeneratedAssetUse(definition, selected);
+
+  assert.equal(valid.ok, true);
+  assert.equal(definition.assets[0].key, 'asset-1');
+  assert.equal(definition.assets[0].type, 'gltf');
+  assert.equal(definition.assets[0].url, '/assets/library/test/asset-1.glb');
+  assert.equal(definition.scenes[0].entities[0].model.assetKey, 'asset-1');
+  assert.ok(valid.warnings.some((warning) => warning.code === 'normalized.assetCandidateKey'));
+  assert.ok(valid.warnings.some((warning) => warning.code === 'normalized.assetCandidateType'));
+  assert.ok(valid.warnings.some((warning) => warning.code === 'normalized.assetCandidateUrl'));
+  assert.ok(valid.warnings.some((warning) => warning.code === 'normalized.assetReferenceKey'));
+
+  const invented = sampleGameDefinition();
+  invented.assets = [{ key: 'invented', type: 'gltf', url: '/assets/library/test/invented.glb' }];
+  const invalid = validateGeneratedAssetUse(invented, selected);
+  assert.equal(invalid.ok, false);
+});
+
 test('engine from-brief mocked tool path returns assets and bounded debug', async () => {
   let calls = 0;
   let finalAsset = null;
@@ -336,4 +367,107 @@ test('engine from-brief mocked tool path returns assets and bounded debug', asyn
   assert.equal(result.toolCalling.selectedAssets.length <= result.toolCalling.budget.maxSelectedAssets, true);
   assert.ok(result.selectedAssets.some((asset) => asset.id === finalAsset.id));
   assert.equal(result.gameDefinition.assets[0].url, finalAsset.publicPath);
+});
+
+test('engine from-brief mocked hybrid path returns previewable mixed GameDefinition metadata', async () => {
+  let finalModelAsset = null;
+  let finalUiAsset = null;
+  const chatCompletionCreate = async (request) => {
+    if (request.messages.every((message) => message.role !== 'tool')) {
+      return {
+        model: 'mock-model',
+        choices: [{
+          message: {
+            tool_calls: [{
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'resolveAssetsForBrief', arguments: '{}' }
+            }]
+          }
+        }]
+      };
+    }
+
+    const toolMessage = request.messages.find((message) => message.role === 'tool');
+    const toolPayload = JSON.parse(toolMessage.content);
+    const selectedAssets = toolPayload.selectedAssets;
+    const modelAsset = selectedAssets.find((asset) => asset.type === 'gltf' && asset.role !== 'ui');
+    const uiAsset = selectedAssets.find((asset) => ['image', 'spritesheet', 'atlas'].includes(asset.type) && asset.role === 'ui');
+    finalModelAsset = modelAsset;
+    finalUiAsset = uiAsset;
+
+    return {
+      model: 'mock-model',
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            schemaVersion: 1,
+            metadata: {
+              title: 'Hybrid Tool Runner',
+              description: 'Hybrid mixed composition test.',
+              genre: 'runner'
+            },
+            engine: {
+              width: 960,
+              height: 540,
+              enable3D: true,
+              enable2D: true,
+              enablePhysics: true,
+              gravity: { x: 0, y: -12, z: 0 }
+            },
+            state: { score: 0 },
+            assets: [
+              { key: modelAsset.id, type: 'gltf', url: modelAsset.publicPath },
+              { key: uiAsset.id, type: uiAsset.type, url: uiAsset.publicPath }
+            ],
+            scenes: [{
+              key: 'main',
+              systems: ['physicsSync', 'camera', 'ui'],
+              entities: [{
+                key: 'player',
+                transform: { position: { x: 0, y: 1, z: 0 } },
+                model: { assetKey: modelAsset.id },
+                sprite: { kind: 'image', assetKey: uiAsset.id, x: 48, y: 48, followIn3D: true },
+                rigidBody: { type: 'dynamic', collider: { shape: 'cuboid', halfExtents: { x: 0.5, y: 1, z: 0.5 } } },
+                cameraTarget: {}
+              }],
+              ui: [{ type: 'text', text: 'Score: {score}' }]
+            }],
+            initialScene: 'main'
+          })
+        }
+      }]
+    };
+  };
+
+  const result = await generateEngineGameFromBriefInternal({
+    prompt: 'Create a hybrid runner with a Three.js world, Phaser HUD, mobile controls, and Rapier physics.',
+    answers: {},
+    gameType: 'platformer',
+    dimension: 'hybrid',
+    brief: sampleBrief({
+      dimension: 'hybrid',
+      runtimePlan: {
+        runtime: 'hybrid',
+        phaserRole: 'HUD overlays and mobile controls only',
+        threeRole: '3D world and model visuals',
+        rapierRole: 'Rigid-body collisions',
+        systems: ['physicsSync', 'camera', 'ui']
+      },
+      keyMechanics: ['3D jumping', 'HUD overlay', 'mobile controls']
+    }),
+    model: 'openai/gpt-5.1',
+    debug: true
+  }, { chatCompletionCreate });
+
+  assert.equal(result.assetResolution.meta.runtimeTarget, 'hybrid');
+  assert.deepEqual(result.assetResolution.meta.assetEngines, ['three', 'phaser']);
+  assert.ok(finalModelAsset, 'hybrid resolver should provide a Three.js GLTF gameplay lane');
+  assert.ok(finalUiAsset, 'hybrid resolver should provide a Phaser-compatible UI lane');
+  assert.equal(result.gameDefinition.engine.enable3D, true);
+  assert.equal(result.gameDefinition.engine.enable2D, true);
+  assert.equal(result.gameDefinition.engine.enablePhysics, true);
+  assert.equal(result.gameDefinition.assets.some((asset) => asset.key === finalModelAsset.id && asset.type === 'gltf'), true);
+  assert.equal(result.gameDefinition.assets.some((asset) => asset.key === finalUiAsset.id && ['image', 'spritesheet', 'atlas'].includes(asset.type)), true);
+  assert.equal(result.normalizationWarnings.length, 0);
 });

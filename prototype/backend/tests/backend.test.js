@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 process.env.NODE_ENV = 'test';
 process.env.LOG_LEVEL = 'fatal';
@@ -9,7 +11,14 @@ process.env.OPENROUTER_API_KEY = 'replace-with-your-openrouter-api-key';
 
 const { createApp } = require('../src/app');
 const { validateEngineGameDefinitionSafe } = require('../src/schemas/engineGameDefinitionSchema');
+const { generateGameSchema } = require('../src/schemas/apiSchemas');
 const { resolveAssetsForBrief } = require('../src/services/assetResolutionService');
+
+const fixtureDir = path.resolve(__dirname, '../../..', 'test-fixtures/game-definitions');
+
+function fixture(name) {
+  return JSON.parse(fs.readFileSync(path.join(fixtureDir, name), 'utf8'));
+}
 
 let server;
 let baseUrl;
@@ -208,6 +217,53 @@ test('GAME_ENGINE GameDefinition validator accepts runtime schema and rejects ol
   assert.equal(oldFormat.ok, false);
 });
 
+test('GAME_ENGINE validator normalizes safe AI-shaped runtime mistakes before strict validation', () => {
+  const candidate = sampleEngineGameDefinition();
+  delete candidate.initialScene;
+  candidate.ui = [{ text: 'Score: {score}', x: 16, y: 16 }];
+  candidate.scenes[0].entities[0].transform.rotation = { x: 0, y: 0, z: 0 };
+  candidate.scenes[0].entities[0].rigidBody.collider = { shape: 'box', size: { x: 0.8, y: 1.2, z: 0.8 } };
+  candidate.scenes[0].entities[0].mesh.color = '0x38bdf8';
+  candidate.scenes[0].ui = [{ text: 'Goal: collect', x: 20, y: 40 }];
+
+  const valid = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(valid.ok, true);
+  assert.ok(valid.warnings.some((warning) => warning.code === 'normalized.initialScene'));
+  assert.ok(valid.warnings.some((warning) => warning.code === 'normalized.rotationQuaternionW'));
+  assert.ok(valid.warnings.some((warning) => warning.code === 'normalized.colliderBoxToCuboid'));
+  assert.equal(valid.data.initialScene, 'main');
+  assert.equal(valid.data.ui[0].type, 'text');
+  assert.equal(valid.data.scenes[0].entities[0].transform.rotation.w, 1);
+  assert.equal(valid.data.scenes[0].entities[0].rigidBody.collider.shape, 'cuboid');
+  assert.equal(valid.data.scenes[0].entities[0].mesh.color, 0x38bdf8);
+});
+
+test('backend GameDefinition validator follows shared parity fixtures', () => {
+  for (const name of ['valid-2d.json', 'valid-3d.json', 'valid-hybrid.json']) {
+    const valid = validateEngineGameDefinitionSafe(fixture(name));
+    assert.equal(valid.ok, true, `${name} should be accepted`);
+    assert.equal(valid.warnings.length, 0, `${name} should not need normalization`);
+  }
+
+  const wrongType = validateEngineGameDefinitionSafe(fixture('wrong-asset-type-references.json'));
+  assert.equal(wrongType.ok, false);
+  assert.match(wrongType.errors[0].message, /expected gltf/i);
+
+  const missing = validateEngineGameDefinitionSafe(fixture('missing-asset-references.json'));
+  assert.equal(missing.ok, false);
+  assert.match(missing.errors[0].message, /missing model asset/i);
+
+  const normalized = validateEngineGameDefinitionSafe(fixture('normalized-ai-shaped-output.json'));
+  assert.equal(normalized.ok, true);
+  const codes = normalized.warnings.map((warning) => warning.code);
+  assert.ok(codes.includes('normalized.initialScene'));
+  assert.ok(codes.includes('normalized.rotationQuaternionW'));
+  assert.ok(codes.includes('normalized.colliderBoxToCuboid'));
+  assert.ok(codes.includes('normalized.engineEnable3D'));
+  assert.ok(codes.includes('normalized.engineEnable2D'));
+  assert.ok(codes.includes('normalized.engineEnablePhysics'));
+});
+
 test('GAME_ENGINE validator accepts declared GLB model entities and rejects missing model assets', () => {
   const withModel = sampleEngineGameDefinition();
   withModel.assets = [{ key: 'crate-model', type: 'gltf', url: '/assets/library/kenney-platformer-kit/models/glb-format/crate.glb' }];
@@ -288,6 +344,17 @@ test('generate-game remains stateless and can fall back locally', async () => {
   assert.ok(Array.isArray(generated.data.assetManifest));
 });
 
+test('legacy generate-game schema still rejects hybrid dimensions', () => {
+  const parsed = generateGameSchema.safeParse({
+    prompt: 'Create a simple hybrid platformer with coins',
+    answers: {},
+    gameType: 'platformer',
+    dimension: 'hybrid'
+  });
+
+  assert.equal(parsed.success, false);
+});
+
 test('asset resolver selects existing 3D assets with confidence and short reasons', () => {
   const assetResolution = resolveAssetsForBrief({
     prompt: 'Create a tiny 3D platformer preview',
@@ -297,6 +364,9 @@ test('asset resolver selects existing 3D assets with confidence and short reason
 
   assert.equal(assetResolution.meta.strategy, 'deterministic-registry-ranking');
   assert.equal(assetResolution.meta.targetEngine, 'three');
+  assert.equal(assetResolution.meta.runtimeTarget, '3D');
+  assert.equal(assetResolution.meta.primaryEngine, 'three');
+  assert.deepEqual(assetResolution.meta.assetEngines, ['three']);
   assert.ok(assetResolution.meta.evaluatedAssets < assetResolution.meta.totalAssets);
   assert.ok(assetResolution.requirements.some((requirement) => requirement.role === 'player'));
   assert.ok(assetResolution.selectedAssets.some((asset) => asset.role === 'player' && asset.type === 'gltf'));
@@ -346,8 +416,34 @@ test('asset resolver selects 2D preview assets for 2D briefs', () => {
   const assetResolution = resolveAssetsForBrief({ dimension: '2D', brief });
 
   assert.equal(assetResolution.meta.targetEngine, 'phaser');
+  assert.equal(assetResolution.meta.runtimeTarget, '2D');
+  assert.equal(assetResolution.meta.primaryEngine, 'phaser');
+  assert.deepEqual(assetResolution.meta.assetEngines, ['phaser']);
   assert.ok(assetResolution.selectedAssets.some((asset) => asset.role === 'player' && asset.type === 'image'));
   assert.ok(assetResolution.runtimeAssetManifest.assets.every((asset) => asset.type === 'image' || asset.type === 'spritesheet'));
+});
+
+test('asset resolver exposes hybrid runtime metadata and mixed asset lanes', () => {
+  const brief = clone(sampleGameBrief());
+  brief.dimension = 'hybrid';
+  brief.runtimePlan.runtime = 'hybrid';
+  brief.runtimePlan.phaserRole = 'HUD, mobile controls, and overlay sprites';
+  brief.runtimePlan.threeRole = '3D world, player model, and platform props';
+  brief.keyMechanics = ['3D jumping', 'collectibles', 'HUD overlay', 'mobile touch controls'];
+  brief.assetPlan.existingAssetsToUse = ['3D player model', 'platform props', 'HUD icon', 'mobile controls'];
+
+  const assetResolution = resolveAssetsForBrief({
+    prompt: 'Create a hybrid 3D platformer with a Three.js world, Phaser HUD overlay, mobile controls, and Rapier physics.',
+    dimension: 'hybrid',
+    brief
+  });
+
+  assert.equal(assetResolution.meta.targetEngine, 'three');
+  assert.equal(assetResolution.meta.runtimeTarget, 'hybrid');
+  assert.equal(assetResolution.meta.primaryEngine, 'three');
+  assert.deepEqual(assetResolution.meta.assetEngines, ['three', 'phaser']);
+  assert.ok(assetResolution.selectedAssets.some((asset) => asset.role !== 'ui' && asset.type === 'gltf'));
+  assert.ok(assetResolution.selectedAssets.some((asset) => asset.role === 'ui' && ['image', 'spritesheet', 'atlas'].includes(asset.type)));
 });
 
 test('asset resolver reports substitutions and selects imported audio when available', () => {
@@ -394,11 +490,66 @@ test('asset resolve endpoint validates input and returns Agent 02 contract', asy
   assert.ok(Array.isArray(resolved.data.assetResolution.runtimeAssetManifest.assets));
   assert.ok(resolved.data.assetResolution.selectedAssets.length > 0);
   assert.ok(resolved.data.assetResolution.meta.evaluatedAssets < resolved.data.assetResolution.meta.totalAssets);
+  assert.equal(resolved.data.assetResolution.meta.runtimeTarget, '3D');
+  assert.equal(resolved.data.assetResolution.meta.primaryEngine, 'three');
+  assert.deepEqual(resolved.data.assetResolution.meta.assetEngines, ['three']);
 
   for (const asset of resolved.data.assetResolution.selectedAssets) {
     assert.ok(asset.confidenceScore >= 0 && asset.confidenceScore <= 1);
     assert.ok(asset.reason.length <= 140);
   }
+});
+
+test('creative routes accept hybrid dimension and tolerant accepted briefs', async () => {
+  const brief = sampleGameBrief();
+  brief.dimension = 'hybrid';
+  delete brief.followUpQuestions;
+  delete brief.runtimePlan;
+
+  const questions = await request('POST', '/api/mcq/generate', {
+    body: {
+      prompt: 'Create a hybrid platformer about robot gardens and sky platforms',
+      gameType: 'platformer',
+      dimension: 'hybrid'
+    }
+  });
+  assert.equal(questions.res.status, 200);
+
+  const generatedBrief = await request('POST', '/api/brief/generate', {
+    body: {
+      prompt: 'Create a hybrid platformer about robot gardens and sky platforms',
+      answers: {},
+      gameType: 'platformer',
+      dimension: 'hybrid'
+    }
+  });
+  assert.equal(generatedBrief.res.status, 200);
+  assert.equal(generatedBrief.data.brief.dimension, 'hybrid');
+
+  const resolved = await request('POST', '/api/assets/resolve', {
+    body: {
+      prompt: 'Resolve hybrid assets',
+      gameType: 'platformer',
+      dimension: 'hybrid',
+      brief
+    }
+  });
+  assert.equal(resolved.res.status, 200);
+  assert.equal(resolved.data.assetResolution.meta.strategy, 'deterministic-registry-ranking');
+  assert.equal(resolved.data.assetResolution.meta.runtimeTarget, 'hybrid');
+  assert.equal(resolved.data.assetResolution.meta.primaryEngine, 'three');
+  assert.deepEqual(resolved.data.assetResolution.meta.assetEngines, ['three', 'phaser']);
+
+  const engine = await request('POST', '/api/engine/from-brief', {
+    body: {
+      prompt: 'Create a preview',
+      gameType: 'platformer',
+      dimension: 'hybrid',
+      brief
+    }
+  });
+  assert.equal(engine.res.status, 503);
+  assert.equal(engine.data.code, 'SERVICE_UNAVAILABLE');
 });
 
 test('engine from-brief endpoint validates input before OpenAI', async () => {

@@ -149,3 +149,20 @@
   line-height: 1.45;
 }
 .brief-list li + li { margin-top: 4px; }
+
+.definition-preview {
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: #0b0f16;
+  max-height: 540px;
+  overflow: auto;
+}
+.definition-preview pre {
+  margin: 0;
+  padding: 16px;
+  color: #e5edf7;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

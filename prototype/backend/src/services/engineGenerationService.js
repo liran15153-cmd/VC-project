@@ -38,21 +38,18 @@ async function generateEngineGameWithRetries({ prompt, model, brief = null, asse
     lastModel = result.model;
     lastRaw = result.raw;
 
-    const check = validateEngineGameDefinitionSafe(result.json);
+    const check = validateGeneratedGameDefinition(result.json, assetCandidates);
     if (check.ok) {
-      const assetUseCheck = validateGeneratedAssetUse(check.data, assetCandidates);
-      if (assetUseCheck.ok) {
-        return {
-          gameDefinition: check.data,
-          model: result.model,
-          durationMs: totalDurationMs,
-          attempts: attempt,
-          raw: lastRaw
-        };
-      }
-      lastReason = assetUseCheck.reason;
+      return {
+        gameDefinition: check.data,
+        model: result.model,
+        durationMs: totalDurationMs,
+        attempts: attempt,
+        normalizationWarnings: check.warnings || [],
+        raw: lastRaw
+      };
     } else {
-      lastReason = check.errors.map((error) => `${error.path || '<root>'}: ${error.message}`).join('; ');
+      lastReason = check.reason;
     }
 
     logger.warn({ attempt, reason: lastReason }, 'GAME_ENGINE GameDefinition validation failed');
@@ -116,6 +113,7 @@ async function generateEngineGameFromBriefInternal(input, options = {}) {
         model: toolResult.model,
         durationMs: toolResult.durationMs,
         attempts: toolResult.attempts,
+        normalizationWarnings: toolResult.normalizationWarnings || [],
         toolCalling: debug ? toolResult.toolCalling : toolSummary(toolResult.toolCalling)
       };
     }
@@ -180,6 +178,7 @@ async function generateFromBriefWithDeterministicAssets({
     model: result.model,
     durationMs: result.durationMs,
     attempts: result.attempts,
+    normalizationWarnings: result.normalizationWarnings || [],
     raw: result.raw
   };
 }
@@ -281,6 +280,7 @@ async function tryGenerateWithAssetTool({
     model: validated.model,
     durationMs: validated.durationMs,
     attempts: validated.attempts,
+    normalizationWarnings: validated.normalizationWarnings || [],
     toolCalling
   };
 }
@@ -298,6 +298,7 @@ async function validateInitialOrRetry({ initial, prompt, model, brief, assetCand
       model: initial.model,
       durationMs: totalDurationMs,
       attempts: 1,
+      normalizationWarnings: firstCheck.warnings || [],
       raw: lastRaw
     };
   }
@@ -328,6 +329,7 @@ async function validateInitialOrRetry({ initial, prompt, model, brief, assetCand
         model: result.model,
         durationMs: totalDurationMs,
         attempts: attempt,
+        normalizationWarnings: check.warnings || [],
         raw: lastRaw
       };
     }
@@ -341,13 +343,55 @@ async function validateInitialOrRetry({ initial, prompt, model, brief, assetCand
 }
 
 function validateGeneratedGameDefinition(json, assetCandidates) {
-  const check = validateEngineGameDefinitionSafe(json);
+  const normalizedAssetUse = normalizeCandidateAssetUse(json, assetCandidates);
+  const check = validateEngineGameDefinitionSafe(normalizedAssetUse.candidate);
   if (!check.ok) {
     return { ok: false, reason: check.errors.map((error) => `${error.path || '<root>'}: ${error.message}`).join('; ') };
   }
   const assetUseCheck = validateGeneratedAssetUse(check.data, assetCandidates);
   if (!assetUseCheck.ok) return { ok: false, reason: assetUseCheck.reason };
-  return { ok: true, data: check.data };
+  return {
+    ok: true,
+    data: check.data,
+    warnings: [
+      ...(normalizedAssetUse.warnings || []),
+      ...(check.warnings || []),
+      ...(assetUseCheck.warnings || [])
+    ]
+  };
+}
+
+function normalizeCandidateAssetUse(json, assetCandidates) {
+  if (!assetCandidates.length || !json || typeof json !== 'object' || !Array.isArray(json.assets)) {
+    return { candidate: json, warnings: [] };
+  }
+  const candidate = JSON.parse(JSON.stringify(json));
+  const warnings = [];
+  const aliases = buildAssetAliases(assetCandidates);
+  const keyRemaps = new Map();
+
+  for (const [index, asset] of candidate.assets.entries()) {
+    if (!asset || typeof asset !== 'object') continue;
+    const source = aliases.get(normalize(asset.key)) || aliases.get(normalize(asset.name)) || aliases.get(normalize(asset.url));
+    if (!source) continue;
+    if (asset.key !== source.id) {
+      keyRemaps.set(asset.key, source.id);
+      addNormalizationWarning(warnings, 'normalized.assetCandidateKey', `assets.${index}.key`, asset.key, source.id, 'Generated asset key was normalized to the selected asset id.');
+      asset.key = source.id;
+    }
+    const expectedType = runtimeAssetType(source);
+    if (asset.type !== expectedType) {
+      addNormalizationWarning(warnings, 'normalized.assetCandidateType', `assets.${index}.type`, asset.type, expectedType, 'Generated asset type was normalized to the selected asset type.');
+      asset.type = expectedType;
+    }
+    if (asset.url !== source.publicPath) {
+      addNormalizationWarning(warnings, 'normalized.assetCandidateUrl', `assets.${index}.url`, asset.url, source.publicPath, 'Generated asset URL was normalized to the selected asset public path.');
+      asset.url = source.publicPath;
+    }
+  }
+
+  if (keyRemaps.size) rewriteAssetReferences(candidate, keyRemaps, warnings);
+  return { candidate, warnings };
 }
 
 function resolveAssetsForBriefToolSchema() {
@@ -469,24 +513,79 @@ function logToolSummary(toolCalling, result) {
 }
 
 function validateGeneratedAssetUse(gameDefinition, assetCandidates) {
-  if (!assetCandidates.length || !Array.isArray(gameDefinition.assets)) return { ok: true };
+  if (!assetCandidates.length || !Array.isArray(gameDefinition.assets)) return { ok: true, warnings: [] };
 
   const allowed = new Map(assetCandidates.map((asset) => [asset.id, asset]));
-  for (const asset of gameDefinition.assets) {
-    const source = allowed.get(asset.key);
+  const aliases = buildAssetAliases(assetCandidates);
+  const keyRemaps = new Map();
+  const warnings = [];
+
+  for (const [index, asset] of gameDefinition.assets.entries()) {
+    const source = allowed.get(asset.key) || aliases.get(normalize(asset.key)) || aliases.get(normalize(asset.name)) || aliases.get(normalize(asset.url));
     if (!source) {
       return { ok: false, reason: `Generated asset "${asset.key}" is not in the supplied asset candidates.` };
     }
+    if (asset.key !== source.id) {
+      keyRemaps.set(asset.key, source.id);
+      addNormalizationWarning(warnings, 'normalized.assetCandidateKey', `assets.${index}.key`, asset.key, source.id, 'Generated asset key was normalized to the selected asset id.');
+      asset.key = source.id;
+    }
     const expectedType = runtimeAssetType(source);
     if (asset.type !== expectedType) {
-      return { ok: false, reason: `Generated asset "${asset.key}" has type "${asset.type}" but must be "${expectedType}".` };
+      addNormalizationWarning(warnings, 'normalized.assetCandidateType', `assets.${index}.type`, asset.type, expectedType, 'Generated asset type was normalized to the selected asset type.');
+      asset.type = expectedType;
     }
     if (asset.url !== source.publicPath) {
-      return { ok: false, reason: `Generated asset "${asset.key}" must use exact publicPath "${source.publicPath}".` };
+      addNormalizationWarning(warnings, 'normalized.assetCandidateUrl', `assets.${index}.url`, asset.url, source.publicPath, 'Generated asset URL was normalized to the selected asset public path.');
+      asset.url = source.publicPath;
     }
   }
 
-  return { ok: true };
+  if (keyRemaps.size) rewriteAssetReferences(gameDefinition, keyRemaps, warnings);
+
+  return { ok: true, warnings };
+}
+
+function buildAssetAliases(assetCandidates) {
+  const aliases = new Map();
+  for (const asset of assetCandidates) {
+    const keys = [
+      asset.id,
+      asset.name,
+      asset.publicPath,
+      asset.sourceRelativePath,
+      asset.source?.relativePath
+    ];
+    for (const key of keys) {
+      const normalized = normalize(key);
+      if (normalized && !aliases.has(normalized)) aliases.set(normalized, asset);
+    }
+  }
+  return aliases;
+}
+
+function rewriteAssetReferences(gameDefinition, keyRemaps, warnings = []) {
+  const entities = [
+    ...(gameDefinition.scenes || []).flatMap((scene) => scene.entities || []),
+    ...Object.values(gameDefinition.prefabs || {})
+  ];
+
+  for (const entity of entities) {
+    if (entity.model?.assetKey && keyRemaps.has(entity.model.assetKey)) {
+      const before = entity.model.assetKey;
+      entity.model.assetKey = keyRemaps.get(entity.model.assetKey);
+      addNormalizationWarning(warnings, 'normalized.assetReferenceKey', `entities.${entity.key || '<unknown>'}.model.assetKey`, before, entity.model.assetKey, 'Model asset reference was normalized to the selected asset id.');
+    }
+    if (entity.sprite?.assetKey && keyRemaps.has(entity.sprite.assetKey)) {
+      const before = entity.sprite.assetKey;
+      entity.sprite.assetKey = keyRemaps.get(entity.sprite.assetKey);
+      addNormalizationWarning(warnings, 'normalized.assetReferenceKey', `entities.${entity.key || '<unknown>'}.sprite.assetKey`, before, entity.sprite.assetKey, 'Sprite asset reference was normalized to the selected asset id.');
+    }
+  }
+}
+
+function addNormalizationWarning(warnings, code, path, before, after, message) {
+  warnings.push({ code, path, before, after, message });
 }
 
 function runtimeAssetType(asset) {

@@ -21,6 +21,7 @@ export {
   TransformDefinitionSchema,
   UiDefinitionSchema,
   parseGameDefinition,
+  parseGameDefinitionWithWarnings,
 } from './GameDefinition';
 export type {
   AssetDefinition,
@@ -28,6 +29,7 @@ export type {
   BehaviorDefinition,
   EntityDefinition,
   GameDefinition,
+  GameDefinitionNormalizationWarning,
   LightDefinition,
   MeshDefinition,
   ModelDefinition,

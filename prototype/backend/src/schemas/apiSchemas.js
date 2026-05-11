@@ -6,6 +6,7 @@ const { z } = require('zod');
 const { GENERATION } = require('../config/constants');
 const {
   allGenresEnum,
+  creativeDimensionEnum,
   dimensionEnum
 } = require('./commonSchemas');
 const { looseGameJSONSchema } = require('./gameSchemas');
@@ -21,8 +22,6 @@ const editPromptSchema = z.string()
   .max(GENERATION.MAX_EDIT_PROMPT_LENGTH, `editPrompt too long (max ${GENERATION.MAX_EDIT_PROMPT_LENGTH} chars)`);
 
 const modelSchema = z.string().trim().min(1).max(120).optional();
-const briefDimensionEnum = z.enum(['2D', '3D', 'hybrid']);
-
 const systemPromptSchema = z.string()
   .min(1, 'systemPrompt cannot be empty')
   .max(20000, 'systemPrompt too long (max 20000 chars)');
@@ -37,7 +36,7 @@ const openaiRequestSchema = z.object({
 const mcqGenerateSchema = z.object({
   prompt: promptSchema,
   gameType: allGenresEnum.optional(),
-  dimension: dimensionEnum.optional(),
+  dimension: creativeDimensionEnum.optional(),
   model: modelSchema
 });
 
@@ -77,7 +76,7 @@ const gameBriefGenerateSchema = z.object({
   prompt: promptSchema,
   answers: z.record(z.string()).optional().default({}),
   gameType: allGenresEnum.optional(),
-  dimension: dimensionEnum.optional(),
+  dimension: creativeDimensionEnum.optional(),
   existingAssets: z.array(z.object({
     id: z.string().min(1).max(120),
     name: z.string().min(1).max(200),
@@ -124,12 +123,43 @@ const gameBriefSchema = z.object({
   brief: gameBriefContentSchema
 });
 
+const acceptedGameBriefSchema = gameBriefContentSchema.extend({
+  targetPlatform: z.enum(['mobile-first', 'desktop-first', 'cross-platform']).optional().default('mobile-first'),
+  controls: gameBriefContentSchema.shape.controls.optional().default({
+    primary: 'Keyboard or pointer controls',
+    mobile: 'Touch controls',
+    accessibilityNotes: []
+  }),
+  runtimePlan: gameBriefContentSchema.shape.runtimePlan.optional().default({
+    runtime: 'hybrid',
+    phaserRole: '2D HUD, sprites, and overlays',
+    threeRole: '3D world or model visuals when useful',
+    rapierRole: 'Physics, collision, and triggers',
+    godotStyleGenerationNotes: 'Keep output declarative, modular, and editable.',
+    systems: ['physicsSync', 'camera', 'behavior', 'ui']
+  }),
+  assetPlan: gameBriefContentSchema.shape.assetPlan.optional().default({
+    existingAssetsToUse: [],
+    assetsToGenerate: ['player', 'collectible', 'platform or environment pieces'],
+    visualStyle: 'readable game prototype style'
+  }),
+  missingInfo: gameBriefContentSchema.shape.missingInfo.optional().default([]),
+  followUpQuestions: z.array(mcqQuestionSchema).max(6).optional().default([]),
+  productionNotes: gameBriefContentSchema.shape.productionNotes.optional().default([
+    'Keep the first preview small and playable.',
+    'Use supported runtime systems only.'
+  ]),
+  nonGoals: gameBriefContentSchema.shape.nonGoals.optional().default([
+    'No full game code generation in the brief step'
+  ])
+});
+
 const engineFromBriefGenerateSchema = z.object({
   prompt: promptSchema.optional(),
   answers: z.record(z.string()).optional().default({}),
   gameType: allGenresEnum.optional(),
-  dimension: briefDimensionEnum.optional(),
-  brief: gameBriefContentSchema,
+  dimension: creativeDimensionEnum.optional(),
+  brief: acceptedGameBriefSchema,
   selectedAssetIds: z.array(z.string().min(1).max(180)).max(20).optional().default([]),
   model: modelSchema,
   debug: z.boolean().optional().default(false)
@@ -139,8 +169,8 @@ const assetResolveSchema = z.object({
   prompt: promptSchema.optional(),
   answers: z.record(z.string()).optional().default({}),
   gameType: allGenresEnum.optional(),
-  dimension: briefDimensionEnum.optional(),
-  brief: gameBriefContentSchema,
+  dimension: creativeDimensionEnum.optional(),
+  brief: acceptedGameBriefSchema,
   selectedAssetIds: z.array(z.string().min(1).max(180)).max(20).optional().default([]),
   debug: z.boolean().optional().default(false),
   strictMissing: z.boolean().optional()
@@ -160,5 +190,6 @@ module.exports = {
   editGameSchema,
   mcqQuestionsSchema,
   gameBriefContentSchema,
+  acceptedGameBriefSchema,
   gameBriefSchema
 };

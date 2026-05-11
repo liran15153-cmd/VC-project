@@ -38,6 +38,7 @@ router.post('/generate', validate(engineGenerateSchema), async (req, res, next) 
         model: result.model,
         durationMs: result.durationMs,
         attempts: result.attempts,
+        normalizationWarningCount: result.normalizationWarnings?.length || 0,
         persistence: 'supabase_pending'
       }
     });
@@ -64,9 +65,10 @@ router.post('/from-brief', validate(engineFromBriefGenerateSchema), async (req, 
         attempts: result.attempts,
         selectedAssetCount: result.selectedAssets.length,
         toolCalling: result.toolCalling,
+        normalizationWarningCount: result.normalizationWarnings?.length || 0,
         persistence: 'supabase_pending'
       },
-      ...(debug ? { debug: { toolCalling: result.toolCalling } } : {})
+      ...(debug ? { debug: { toolCalling: result.toolCalling, normalizationWarnings: result.normalizationWarnings || [] } } : {})
     });
   } catch (err) {
     next(toUserFacingGenerationError(err));

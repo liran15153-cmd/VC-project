@@ -1,4 +1,4 @@
-import { Engine, GameRuntime, parseGameDefinition, type GameDefinition } from '../src';
+import { Engine, GameRuntime, parseGameDefinitionWithWarnings, type GameDefinition, type GameDefinitionNormalizationWarning } from '../src';
 
 const MESSAGE_IN = 'LOOMIER_PREVIEW_GAME_DEFINITION';
 const MESSAGE_OUT = 'LOOMIER_PREVIEW_STATUS';
@@ -8,6 +8,7 @@ const statusEl = document.querySelector<HTMLDivElement>('#status')!;
 
 let engine: Engine | null = null;
 let runtime: GameRuntime | null = null;
+let lastWarnings: GameDefinitionNormalizationWarning[] = [];
 
 window.addEventListener('message', (event) => {
   const message = event.data as { type?: string; gameDefinition?: unknown } | null;
@@ -23,7 +24,10 @@ async function runDefinition(input: unknown): Promise<void> {
     setStatus('running', 'Validating GameDefinition...');
     postStatus('running');
 
-    const definition = parseGameDefinition(input);
+    const parsed = parseGameDefinitionWithWarnings(input);
+    const definition = parsed.definition;
+    lastWarnings = parsed.warnings;
+    postStatus('running', { warningCount: lastWarnings.length, warnings: lastWarnings });
     await destroyCurrent();
     gameRoot.replaceChildren();
 
@@ -44,8 +48,8 @@ async function runDefinition(input: unknown): Promise<void> {
     engine.start();
 
     exposeRuntime(definition);
-    setStatus('ready', `Running: ${definition.metadata.title}`);
-    postStatus('ready', { title: definition.metadata.title });
+    setStatus('ready', `Running: ${definition.metadata.title}${lastWarnings.length ? ` (${lastWarnings.length} warnings)` : ''}`);
+    postStatus('ready', { title: definition.metadata.title, warningCount: lastWarnings.length, warnings: lastWarnings });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setStatus('error', message);

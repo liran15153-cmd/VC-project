@@ -1,6 +1,6 @@
 import { api, getApiBase, getToken, request } from './client';
 import type {
-  AuthResponse, Dimension, EditGameResponse, EngineGenerateResponse, GameJSON, GameListResponse,
+  AuthResponse, Dimension, EditGameResponse, EngineFromBriefResponse, EngineGenerateResponse, GameBrief, GameJSON, GameListResponse, LegacyDimension,
   GameBriefGenerateResponse, Genre, GenerateGameResponse, HealthResponse, MCQGenerateResponse, MeResponse, SavedGame,
   StatsEventsResponse, StatsResponse, TokenBalance,
 } from '../types/api';
@@ -43,7 +43,7 @@ export const generationApi = {
     prompt: string;
     answers?: Record<string, string>;
     gameType: Genre;
-    dimension: Dimension;
+    dimension: LegacyDimension;
     model?: string;
     saveToDb?: boolean;
   }) => api.post<GenerateGameResponse>('/generate-game', data),
@@ -60,6 +60,16 @@ export const generationApi = {
 export const engineApi = {
   generate: (data: { prompt: string; model?: string }) =>
     api.post<EngineGenerateResponse>('/engine/generate', data, { auth: false }),
+  fromBrief: (data: {
+    prompt?: string;
+    answers?: Record<string, string>;
+    gameType?: Genre;
+    dimension?: Dimension;
+    brief: GameBrief;
+    selectedAssetIds?: string[];
+    model?: string;
+    debug?: boolean;
+  }) => api.post<EngineFromBriefResponse>('/engine/from-brief', data, { auth: false }),
 };
 
 export const gamesApi = {

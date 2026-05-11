@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Missing Asset Fixture",
+    "description": "Invalid because a model references an undeclared asset.",
+    "genre": "test"
+  },
+  "engine": {
+    "enable3D": true,
+    "enable2D": false,
+    "enablePhysics": true
+  },
+  "assets": [],
+  "scenes": [
+    {
+      "key": "main",
+      "entities": [
+        {
+          "key": "hero",
+          "model": {
+            "assetKey": "missing-model"
+          }
+        }
+      ]
+    }
+  ],
+  "initialScene": "main"
+}

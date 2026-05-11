@@ -46,6 +46,27 @@ const defaultTextStyle = {
   color: '#ffffff'
 };
 
+function normalizeGameDefinitionCandidate(input) {
+  return normalizeGameDefinitionCandidateWithWarnings(input).candidate;
+}
+
+function normalizeGameDefinitionCandidateWithWarnings(input) {
+  const candidate = clonePlainObject(input);
+  const warnings = [];
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return { candidate: input, warnings };
+
+  normalizeInitialScene(candidate, warnings);
+  normalizeAssetColors(candidate, warnings);
+
+  const scenes = Array.isArray(candidate.scenes) ? candidate.scenes : [];
+  for (const [index, scene] of scenes.entries()) normalizeScene(scene, warnings, `scenes.${index}`);
+  normalizeUiList(candidate.ui, warnings, 'ui');
+  normalizeEntityMap(candidate.prefabs, warnings, 'prefabs');
+  normalizeEngineFlags(candidate, warnings);
+
+  return { candidate, warnings };
+}
+
 const assetDefinitionSchema = z.object({
   key: z.string().min(1),
   type: z.enum(['image', 'spritesheet', 'atlas', 'tilemap', 'gltf', 'audio', 'json', 'text', 'arrayBuffer']),
@@ -418,7 +439,12 @@ const gameDefinitionSchema = z.object({
 });
 
 function parseEngineGameDefinition(input) {
-  const definition = gameDefinitionSchema.parse(input);
+  return parseEngineGameDefinitionWithWarnings(input).definition;
+}
+
+function parseEngineGameDefinitionWithWarnings(input) {
+  const normalized = normalizeGameDefinitionCandidateWithWarnings(input);
+  const definition = gameDefinitionSchema.parse(normalized.candidate);
   const sceneKeys = new Set(definition.scenes.map((scene) => scene.key));
 
   if (definition.initialScene && !sceneKeys.has(definition.initialScene)) {
@@ -432,13 +458,197 @@ function parseEngineGameDefinition(input) {
   }
 
   validateSceneReferences({ key: '__global__', behaviors: definition.behaviors }, sceneKeys);
-  validateModelAssetReferences(definition);
-  return definition;
+  validateAssetReferences(definition);
+  return { definition, warnings: normalized.warnings };
+}
+
+function clonePlainObject(input) {
+  if (!input || typeof input !== 'object') return input;
+  return JSON.parse(JSON.stringify(input));
+}
+
+function addNormalizationWarning(warnings, code, path, before, after, message) {
+  warnings.push({ code, path, before, after, message });
+}
+
+function normalizeInitialScene(definition, warnings) {
+  const scenes = Array.isArray(definition.scenes) ? definition.scenes : [];
+  if (!scenes.length) return;
+  const sceneKeys = new Set(scenes.map((scene) => scene && scene.key).filter(Boolean));
+  if (!definition.initialScene || !sceneKeys.has(definition.initialScene)) {
+    const before = definition.initialScene;
+    definition.initialScene = scenes[0].key;
+    addNormalizationWarning(warnings, 'normalized.initialScene', 'initialScene', before, definition.initialScene, 'Initial scene was set to the first valid scene.');
+  }
+}
+
+function normalizeScene(scene, warnings, path) {
+  if (!scene || typeof scene !== 'object') return;
+  normalizeEntityList(scene.entities, warnings, `${path}.entities`);
+  normalizeUiList(scene.ui, warnings, `${path}.ui`);
+}
+
+function normalizeEntityMap(entitiesByKey, warnings, path) {
+  if (!entitiesByKey || typeof entitiesByKey !== 'object' || Array.isArray(entitiesByKey)) return;
+  for (const [key, entity] of Object.entries(entitiesByKey)) normalizeEntity(entity, warnings, `${path}.${key}`);
+}
+
+function normalizeEntityList(entities, warnings, path) {
+  if (!Array.isArray(entities)) return;
+  for (const [index, entity] of entities.entries()) normalizeEntity(entity, warnings, `${path}.${index}`);
+}
+
+function normalizeEntity(entity, warnings, path) {
+  if (!entity || typeof entity !== 'object') return;
+  normalizeTransform(entity.transform, warnings, `${path}.transform`);
+  normalizeRigidBody(entity.rigidBody, entity.mesh, warnings, `${path}.rigidBody`);
+  normalizeSprite(entity.sprite, warnings, `${path}.sprite`);
+}
+
+function normalizeTransform(transform, warnings, path) {
+  if (!transform || typeof transform !== 'object') return;
+  const rotation = transform.rotation;
+  if (rotation && typeof rotation === 'object' && !Array.isArray(rotation) && rotation.w === undefined) {
+    const before = clonePlainObject(rotation);
+    rotation.w = 1;
+    addNormalizationWarning(warnings, 'normalized.rotationQuaternionW', `${path}.rotation.w`, before, clonePlainObject(rotation), 'Missing quaternion w was defaulted to 1.');
+  }
+}
+
+function normalizeRigidBody(rigidBody, mesh, warnings, path) {
+  if (!rigidBody || typeof rigidBody !== 'object') return;
+  const collider = rigidBody.collider;
+  if (!collider || typeof collider !== 'object') return;
+
+  if (collider.shape === 'box') {
+    const before = clonePlainObject(collider);
+    collider.shape = 'cuboid';
+    if (!collider.halfExtents) {
+      collider.halfExtents = halfExtentsFromSize(collider.size || mesh?.size);
+    }
+    addNormalizationWarning(warnings, 'normalized.colliderBoxToCuboid', `${path}.collider`, before, clonePlainObject(collider), 'Collider shape box was normalized to cuboid.');
+  }
+  if (collider.shape === 'sphere') {
+    const before = clonePlainObject(collider);
+    collider.shape = 'ball';
+    addNormalizationWarning(warnings, 'normalized.colliderSphereToBall', `${path}.collider.shape`, before, clonePlainObject(collider), 'Collider shape sphere was normalized to ball.');
+  }
+}
+
+function halfExtentsFromSize(size) {
+  if (size && typeof size === 'object') {
+    const x = finitePositive(size.x) ? size.x / 2 : 0.5;
+    const y = finitePositive(size.y) ? size.y / 2 : 0.5;
+    const z = finitePositive(size.z) ? size.z / 2 : 0.5;
+    return { x, y, z };
+  }
+  return { x: 0.5, y: 0.5, z: 0.5 };
+}
+
+function finitePositive(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function normalizeSprite(sprite, warnings, path) {
+  if (!sprite || typeof sprite !== 'object') return;
+  if (!sprite.kind && typeof sprite.text === 'string') {
+    sprite.kind = 'text';
+    addNormalizationWarning(warnings, 'normalized.spriteTextKind', `${path}.kind`, undefined, 'text', 'Text sprite kind was inferred.');
+  }
+  if (sprite.style) normalizeStyleColor(sprite.style, warnings, `${path}.style`);
+}
+
+function normalizeUiList(ui, warnings, path) {
+  if (!Array.isArray(ui)) return;
+  for (const [index, item] of ui.entries()) {
+    if (!item || typeof item !== 'object') continue;
+    if (!item.type && typeof item.text === 'string') {
+      item.type = 'text';
+      addNormalizationWarning(warnings, 'normalized.uiTextType', `${path}.${index}.type`, undefined, 'text', 'Text UI type was inferred.');
+    }
+    if (item.style) normalizeStyleColor(item.style, warnings, `${path}.${index}.style`);
+  }
+}
+
+function normalizeAssetColors(value, warnings, path = '') {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((child, index) => normalizeAssetColors(child, warnings, `${path}.${index}`));
+    return;
+  }
+
+  for (const key of ['color', 'fillColor', 'backgroundColor']) {
+    if (Object.prototype.hasOwnProperty.call(value, key)) {
+      const before = value[key];
+      value[key] = normalizeColorValue(value[key]);
+      if (value[key] !== before) {
+        addNormalizationWarning(warnings, 'normalized.color', path ? `${path}.${key}` : key, before, value[key], 'Color value was normalized.');
+      }
+    }
+  }
+  for (const [key, child] of Object.entries(value)) normalizeAssetColors(child, warnings, path ? `${path}.${key}` : key);
+}
+
+function normalizeStyleColor(style, warnings, path) {
+  if (!style || typeof style !== 'object') return;
+  for (const key of ['color', 'stroke']) {
+    if (Object.prototype.hasOwnProperty.call(style, key)) {
+      const before = style[key];
+      style[key] = normalizeColorValue(style[key]);
+      if (style[key] !== before) {
+        addNormalizationWarning(warnings, 'normalized.color', `${path}.${key}`, before, style[key], 'Style color value was normalized.');
+      }
+    }
+  }
+}
+
+function normalizeColorValue(value) {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    const [, r, g, b] = trimmed;
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  if (/^0x[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return Number.parseInt(trimmed.slice(2), 16);
+  }
+  return trimmed;
+}
+
+function normalizeEngineFlags(definition, warnings) {
+  if (!definition.engine || typeof definition.engine !== 'object') return;
+  const usage = collectRuntimeUsage(definition);
+  if (usage.uses3D && definition.engine.enable3D === false) {
+    definition.engine.enable3D = true;
+    addNormalizationWarning(warnings, 'normalized.engineEnable3D', 'engine.enable3D', false, true, '3D rendering was enabled because the definition uses 3D components.');
+  }
+  if (usage.uses2D && definition.engine.enable2D === false) {
+    definition.engine.enable2D = true;
+    addNormalizationWarning(warnings, 'normalized.engineEnable2D', 'engine.enable2D', false, true, '2D rendering was enabled because the definition uses sprites or UI.');
+  }
+  if (usage.usesPhysics && definition.engine.enablePhysics === false) {
+    definition.engine.enablePhysics = true;
+    addNormalizationWarning(warnings, 'normalized.engineEnablePhysics', 'engine.enablePhysics', false, true, 'Physics was enabled because the definition uses rigid bodies.');
+  }
+}
+
+function collectRuntimeUsage(definition) {
+  const entities = [
+    ...(Array.isArray(definition.scenes) ? definition.scenes.flatMap((scene) => scene.entities || []) : []),
+    ...Object.values(definition.prefabs || {})
+  ];
+  const scenes = Array.isArray(definition.scenes) ? definition.scenes : [];
+  return {
+    uses3D: entities.some((entity) => entity?.model || entity?.mesh) || scenes.some((scene) => (scene?.lights || []).length > 0),
+    uses2D: entities.some((entity) => entity?.sprite) || Array.isArray(definition.ui) && definition.ui.length > 0 || scenes.some((scene) => (scene?.ui || []).length > 0),
+    usesPhysics: entities.some((entity) => entity?.rigidBody)
+  };
 }
 
 function validateEngineGameDefinitionSafe(input) {
   try {
-    return { ok: true, data: parseEngineGameDefinition(input) };
+    const parsed = parseEngineGameDefinitionWithWarnings(input);
+    return { ok: true, data: parsed.definition, warnings: parsed.warnings };
   } catch (err) {
     if (err instanceof z.ZodError) {
       return {
@@ -486,22 +696,58 @@ function validateSceneReferences(scene, sceneKeys) {
   }
 }
 
-function validateModelAssetReferences(definition) {
-  const assetKeys = new Set(definition.assets.map((asset) => asset.key));
+function validateAssetReferences(definition) {
+  const assetsByKey = new Map(definition.assets.map((asset) => [asset.key, asset]));
   const entities = [
     ...definition.scenes.flatMap((scene) => scene.entities),
     ...Object.entries(definition.prefabs).map(([key, prefab]) => ({ ...prefab, key }))
   ];
 
   for (const entity of entities) {
-    if (entity.model && !assetKeys.has(entity.model.assetKey)) {
-      throw new Error(`Entity "${entity.key}" references missing model asset "${entity.model.assetKey}".`);
+    if (entity.model) {
+      validateAssetReference(assetsByKey, entity.model.assetKey, ['gltf'], `Entity "${entity.key}" model`);
     }
+    if (entity.sprite?.kind === 'image') {
+      validateAssetReference(assetsByKey, entity.sprite.assetKey, ['image', 'spritesheet', 'atlas'], `Entity "${entity.key}" sprite`);
+    }
+  }
+
+  const audioRules = [
+    ...(definition.audio || []),
+    ...definition.scenes.flatMap((scene) => scene.audio || [])
+  ];
+  for (const rule of audioRules) {
+    const key = rule.asset || rule.sound;
+    if (key) validateAssetReference(assetsByKey, key, ['audio'], 'Audio rule');
+  }
+
+  const behaviors = [
+    ...(definition.behaviors || []),
+    ...definition.scenes.flatMap((scene) => scene.behaviors || [])
+  ];
+  for (const behavior of behaviors) {
+    for (const action of behavior.actions || []) {
+      const type = action.type || action.action;
+      const key = action.asset || action.sound;
+      if (type === 'playSound' && key) validateAssetReference(assetsByKey, key, ['audio'], 'playSound action');
+    }
+  }
+}
+
+function validateAssetReference(assetsByKey, key, allowedTypes, label) {
+  const asset = assetsByKey.get(key);
+  if (!asset && label.endsWith('model')) throw new Error(`${label.replace(' model', '')} references missing model asset "${key}".`);
+  if (!asset) throw new Error(`${label} references missing asset "${key}".`);
+  if (!allowedTypes.includes(asset.type)) {
+    throw new Error(`${label} references asset "${key}" with type "${asset.type}" but expected ${allowedTypes.join(', ')}.`);
   }
 }
 
 module.exports = {
   gameDefinitionSchema,
+  normalizeGameDefinitionCandidate,
+  normalizeGameDefinitionCandidateWithWarnings,
   parseEngineGameDefinition,
+  parseEngineGameDefinitionWithWarnings,
   validateEngineGameDefinitionSafe
 };

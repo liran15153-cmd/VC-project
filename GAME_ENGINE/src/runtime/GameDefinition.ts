@@ -213,6 +213,7 @@ const LooseTriggerSchema = z
   .object({
     type: z.string().optional(),
     trigger: z.string().optional(),
+    name: z.string().optional(),
     key: z.string().optional(),
     input: z.string().optional(),
     entityTag: z.string().optional(),
@@ -220,6 +221,8 @@ const LooseTriggerSchema = z
     stateKey: z.string().optional(),
     event: z.string().optional(),
     every: z.number().positive().optional(),
+    everySeconds: z.number().positive().optional(),
+    seconds: z.number().positive().optional(),
     once: z.boolean().optional(),
   })
   .passthrough();
@@ -244,6 +247,7 @@ const ActionSchema = z
   .object({
     type: z.string().optional(),
     action: z.string().optional(),
+    name: z.string().optional(),
     target: z.unknown().optional(),
     key: z.string().optional(),
     stateKey: z.string().optional(),
@@ -254,6 +258,10 @@ const ActionSchema = z
     event: z.string().optional(),
     scene: z.string().optional(),
     prefab: z.string().optional(),
+    tags: z.array(z.string().min(1)).optional(),
+    tag: z.string().optional(),
+    volume: z.number().min(0).max(1).optional(),
+    payload: z.unknown().optional(),
     position: Vec3Schema.optional(),
   })
   .passthrough();
@@ -431,8 +439,24 @@ export type AudioRule = z.infer<typeof AudioRuleSchema>;
 export type LightDefinition = z.infer<typeof LightDefinitionSchema>;
 export type PrefabDefinition = z.infer<typeof PrefabDefinitionSchema>;
 
+export interface GameDefinitionNormalizationWarning {
+  code: string;
+  path: string;
+  before: unknown;
+  after: unknown;
+  message: string;
+}
+
 export function parseGameDefinition(input: unknown): GameDefinition {
-  const definition = GameDefinitionSchema.parse(input);
+  return parseGameDefinitionWithWarnings(input).definition;
+}
+
+export function parseGameDefinitionWithWarnings(input: unknown): {
+  definition: GameDefinition;
+  warnings: GameDefinitionNormalizationWarning[];
+} {
+  const normalized = normalizeGameDefinitionCandidateWithWarnings(input);
+  const definition = GameDefinitionSchema.parse(normalized.candidate);
   const sceneKeys = new Set(definition.scenes.map((scene) => scene.key));
   if (definition.initialScene && !sceneKeys.has(definition.initialScene)) {
     throw new Error(`initialScene "${definition.initialScene}" does not match any scene key.`);
@@ -445,9 +469,216 @@ export function parseGameDefinition(input: unknown): GameDefinition {
   }
 
   validateSceneReferences({ key: '__global__', behaviors: definition.behaviors }, sceneKeys);
-  validateModelAssetReferences(definition);
+  validateAssetReferences(definition);
 
-  return definition;
+  return { definition, warnings: normalized.warnings };
+}
+
+export function normalizeGameDefinitionCandidate(input: unknown): unknown {
+  return normalizeGameDefinitionCandidateWithWarnings(input).candidate;
+}
+
+export function normalizeGameDefinitionCandidateWithWarnings(input: unknown): {
+  candidate: unknown;
+  warnings: GameDefinitionNormalizationWarning[];
+} {
+  const candidate = clonePlainObject(input);
+  const warnings: GameDefinitionNormalizationWarning[] = [];
+  if (!isRecord(candidate)) return { candidate: input, warnings };
+
+  normalizeInitialScene(candidate, warnings);
+  normalizeAssetColors(candidate, warnings);
+
+  const scenes = Array.isArray(candidate.scenes) ? candidate.scenes : [];
+  scenes.forEach((scene, index) => normalizeScene(scene, warnings, `scenes.${index}`));
+  normalizeUiList(candidate.ui, warnings, 'ui');
+  normalizeEntityMap(candidate.prefabs, warnings, 'prefabs');
+  normalizeEngineFlags(candidate, warnings);
+
+  return { candidate, warnings };
+}
+
+function clonePlainObject(input: unknown): unknown {
+  if (!input || typeof input !== 'object') return input;
+  return JSON.parse(JSON.stringify(input));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function addNormalizationWarning(
+  warnings: GameDefinitionNormalizationWarning[],
+  code: string,
+  path: string,
+  before: unknown,
+  after: unknown,
+  message: string,
+): void {
+  warnings.push({ code, path, before, after, message });
+}
+
+function normalizeInitialScene(definition: Record<string, unknown>, warnings: GameDefinitionNormalizationWarning[]): void {
+  const scenes = Array.isArray(definition.scenes) ? definition.scenes : [];
+  if (!scenes.length) return;
+  const firstScene = scenes[0];
+  if (!isRecord(firstScene) || typeof firstScene.key !== 'string') return;
+  const sceneKeys = new Set(scenes.map((scene) => (isRecord(scene) ? scene.key : undefined)).filter(Boolean));
+  if (typeof definition.initialScene !== 'string' || !sceneKeys.has(definition.initialScene)) {
+    const before = definition.initialScene;
+    definition.initialScene = firstScene.key;
+    addNormalizationWarning(warnings, 'normalized.initialScene', 'initialScene', before, definition.initialScene, 'Initial scene was set to the first valid scene.');
+  }
+}
+
+function normalizeScene(scene: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!isRecord(scene)) return;
+  normalizeEntityList(scene.entities, warnings, `${path}.entities`);
+  normalizeUiList(scene.ui, warnings, `${path}.ui`);
+}
+
+function normalizeEntityMap(entitiesByKey: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!isRecord(entitiesByKey)) return;
+  for (const [key, entity] of Object.entries(entitiesByKey)) normalizeEntity(entity, warnings, `${path}.${key}`);
+}
+
+function normalizeEntityList(entities: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!Array.isArray(entities)) return;
+  entities.forEach((entity, index) => normalizeEntity(entity, warnings, `${path}.${index}`));
+}
+
+function normalizeEntity(entity: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!isRecord(entity)) return;
+  normalizeTransform(entity.transform, warnings, `${path}.transform`);
+  normalizeRigidBody(entity.rigidBody, entity.mesh, warnings, `${path}.rigidBody`);
+  normalizeSprite(entity.sprite, warnings, `${path}.sprite`);
+}
+
+function normalizeTransform(transform: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!isRecord(transform) || !isRecord(transform.rotation) || transform.rotation.w !== undefined) return;
+  const before = clonePlainObject(transform.rotation);
+  transform.rotation.w = 1;
+  addNormalizationWarning(warnings, 'normalized.rotationQuaternionW', `${path}.rotation.w`, before, clonePlainObject(transform.rotation), 'Missing quaternion w was defaulted to 1.');
+}
+
+function normalizeRigidBody(rigidBody: unknown, mesh: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!isRecord(rigidBody) || !isRecord(rigidBody.collider)) return;
+  const collider = rigidBody.collider;
+  if (collider.shape === 'box') {
+    const before = clonePlainObject(collider);
+    collider.shape = 'cuboid';
+    if (!collider.halfExtents) collider.halfExtents = halfExtentsFromSize(isRecord(collider.size) ? collider.size : isRecord(mesh) ? mesh.size : undefined);
+    addNormalizationWarning(warnings, 'normalized.colliderBoxToCuboid', `${path}.collider`, before, clonePlainObject(collider), 'Collider shape box was normalized to cuboid.');
+  }
+  if (collider.shape === 'sphere') {
+    const before = clonePlainObject(collider);
+    collider.shape = 'ball';
+    addNormalizationWarning(warnings, 'normalized.colliderSphereToBall', `${path}.collider.shape`, before, clonePlainObject(collider), 'Collider shape sphere was normalized to ball.');
+  }
+}
+
+function halfExtentsFromSize(size: unknown): { x: number; y: number; z: number } {
+  if (isRecord(size)) {
+    return {
+      x: finitePositive(size.x) ? size.x / 2 : 0.5,
+      y: finitePositive(size.y) ? size.y / 2 : 0.5,
+      z: finitePositive(size.z) ? size.z / 2 : 0.5,
+    };
+  }
+  return { x: 0.5, y: 0.5, z: 0.5 };
+}
+
+function finitePositive(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function normalizeSprite(sprite: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!isRecord(sprite)) return;
+  if (!sprite.kind && typeof sprite.text === 'string') {
+    sprite.kind = 'text';
+    addNormalizationWarning(warnings, 'normalized.spriteTextKind', `${path}.kind`, undefined, 'text', 'Text sprite kind was inferred.');
+  }
+  normalizeStyleColor(sprite.style, warnings, `${path}.style`);
+}
+
+function normalizeUiList(ui: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!Array.isArray(ui)) return;
+  ui.forEach((item, index) => {
+    if (!isRecord(item)) return;
+    if (!item.type && typeof item.text === 'string') {
+      item.type = 'text';
+      addNormalizationWarning(warnings, 'normalized.uiTextType', `${path}.${index}.type`, undefined, 'text', 'Text UI type was inferred.');
+    }
+    normalizeStyleColor(item.style, warnings, `${path}.${index}.style`);
+  });
+}
+
+function normalizeAssetColors(value: unknown, warnings: GameDefinitionNormalizationWarning[], path = ''): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((child, index) => normalizeAssetColors(child, warnings, `${path}.${index}`));
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of ['color', 'fillColor', 'backgroundColor']) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      const before = record[key];
+      record[key] = normalizeColorValue(record[key]);
+      if (record[key] !== before) addNormalizationWarning(warnings, 'normalized.color', path ? `${path}.${key}` : key, before, record[key], 'Color value was normalized.');
+    }
+  }
+  for (const [key, child] of Object.entries(record)) normalizeAssetColors(child, warnings, path ? `${path}.${key}` : key);
+}
+
+function normalizeStyleColor(style: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!isRecord(style)) return;
+  for (const key of ['color', 'stroke']) {
+    if (Object.prototype.hasOwnProperty.call(style, key)) {
+      const before = style[key];
+      style[key] = normalizeColorValue(style[key]);
+      if (style[key] !== before) addNormalizationWarning(warnings, 'normalized.color', `${path}.${key}`, before, style[key], 'Style color value was normalized.');
+    }
+  }
+}
+
+function normalizeColorValue(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    const [, r, g, b] = trimmed;
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  if (/^0x[0-9a-fA-F]{6}$/.test(trimmed)) return Number.parseInt(trimmed.slice(2), 16);
+  return trimmed;
+}
+
+function normalizeEngineFlags(definition: Record<string, unknown>, warnings: GameDefinitionNormalizationWarning[]): void {
+  if (!isRecord(definition.engine)) return;
+  const usage = collectRuntimeUsage(definition);
+  if (usage.uses3D && definition.engine.enable3D === false) {
+    definition.engine.enable3D = true;
+    addNormalizationWarning(warnings, 'normalized.engineEnable3D', 'engine.enable3D', false, true, '3D rendering was enabled because the definition uses 3D components.');
+  }
+  if (usage.uses2D && definition.engine.enable2D === false) {
+    definition.engine.enable2D = true;
+    addNormalizationWarning(warnings, 'normalized.engineEnable2D', 'engine.enable2D', false, true, '2D rendering was enabled because the definition uses sprites or UI.');
+  }
+  if (usage.usesPhysics && definition.engine.enablePhysics === false) {
+    definition.engine.enablePhysics = true;
+    addNormalizationWarning(warnings, 'normalized.engineEnablePhysics', 'engine.enablePhysics', false, true, 'Physics was enabled because the definition uses rigid bodies.');
+  }
+}
+
+function collectRuntimeUsage(definition: Record<string, unknown>): { uses3D: boolean; uses2D: boolean; usesPhysics: boolean } {
+  const scenes = Array.isArray(definition.scenes) ? definition.scenes.filter(isRecord) : [];
+  const sceneEntities = scenes.flatMap((scene) => (Array.isArray(scene.entities) ? scene.entities.filter(isRecord) : []));
+  const prefabEntities = isRecord(definition.prefabs) ? Object.values(definition.prefabs).filter(isRecord) : [];
+  const entities = [...sceneEntities, ...prefabEntities];
+  return {
+    uses3D: entities.some((entity) => !!entity.model || !!entity.mesh) || scenes.some((scene) => Array.isArray(scene.lights) && scene.lights.length > 0),
+    uses2D: entities.some((entity) => !!entity.sprite) || (Array.isArray(definition.ui) && definition.ui.length > 0) || scenes.some((scene) => Array.isArray(scene.ui) && scene.ui.length > 0),
+    usesPhysics: entities.some((entity) => !!entity.rigidBody),
+  };
 }
 
 function isAllowedRemoteAssetUrl(url: string): boolean {
@@ -493,16 +724,44 @@ function validateSceneReferences(scene: { key: string; behaviors: BehaviorDefini
   }
 }
 
-function validateModelAssetReferences(definition: GameDefinition): void {
-  const assetKeys = new Set(definition.assets.map((asset) => asset.key));
+function validateAssetReferences(definition: GameDefinition): void {
+  const assetsByKey = new Map(definition.assets.map((asset) => [asset.key, asset]));
   const entities: EntityDefinition[] = [
     ...definition.scenes.flatMap((scene) => scene.entities),
     ...Object.entries(definition.prefabs).map(([key, prefab]) => ({ ...prefab, key })),
   ];
 
   for (const entity of entities) {
-    if (entity.model && !assetKeys.has(entity.model.assetKey)) {
-      throw new Error(`Entity "${entity.key}" references missing model asset "${entity.model.assetKey}".`);
+    if (entity.model) validateAssetReference(assetsByKey, entity.model.assetKey, ['gltf'], `Entity "${entity.key}" model`);
+    if (entity.sprite?.kind === 'image') validateAssetReference(assetsByKey, entity.sprite.assetKey, ['image', 'spritesheet', 'atlas'], `Entity "${entity.key}" sprite`);
+  }
+
+  const audioRules = [...definition.audio, ...definition.scenes.flatMap((scene) => scene.audio)];
+  for (const rule of audioRules) {
+    const key = rule.asset ?? rule.sound;
+    if (key) validateAssetReference(assetsByKey, key, ['audio'], 'Audio rule');
+  }
+
+  const behaviors = [...definition.behaviors, ...definition.scenes.flatMap((scene) => scene.behaviors)];
+  for (const behavior of behaviors) {
+    for (const action of behavior.actions) {
+      const type = action.type ?? action.action;
+      const key = action.asset ?? action.sound;
+      if (type === 'playSound' && key) validateAssetReference(assetsByKey, key, ['audio'], 'playSound action');
     }
+  }
+}
+
+function validateAssetReference(
+  assetsByKey: Map<string, AssetDefinition>,
+  key: string,
+  allowedTypes: AssetDefinition['type'][],
+  label: string,
+): void {
+  const asset = assetsByKey.get(key);
+  if (!asset && label.endsWith('model')) throw new Error(`${label.replace(' model', '')} references missing model asset "${key}".`);
+  if (!asset) throw new Error(`${label} references missing asset "${key}".`);
+  if (!allowedTypes.includes(asset.type)) {
+    throw new Error(`${label} references asset "${key}" with type "${asset.type}" but expected ${allowedTypes.join(', ')}.`);
   }
 }

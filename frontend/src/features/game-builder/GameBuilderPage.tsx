@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { briefApi, generationApi, mcqApi } from '../../api/endpoints';
+import { briefApi, engineApi, generationApi, mcqApi } from '../../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
 import { useHealth } from '../health/HealthContext';
 import GamePreview from '../game-preview/GamePreview';
 import type {
-  Dimension, GameBrief, GameBriefGenerateResponse, GenerateGameResponse, Genre, MCQGenerateResponse, MCQQuestion,
+  Dimension, EngineFromBriefResponse, GameBrief, GameBriefGenerateResponse, GenerateGameResponse, Genre, MCQGenerateResponse, MCQQuestion,
 } from '../../types/api';
-import { GENRES_2D, GENRES_3D } from '../../types/api';
+import { GENRES_2D, GENRES_3D, GENRES_HYBRID } from '../../types/api';
 import './GameBuilderPage.css';
 
 type Step = 'idle' | 'generating-mcq' | 'awaiting-answers' | 'generating-brief' | 'generating-game' | 'ready' | 'error';
@@ -16,7 +16,7 @@ const PROGRESS_STEPS = [
   'Checking backend',
   'Generating questions',
   'Creating game brief',
-  'Building game JSON',
+  'Building GameDefinition',
   'Running preview',
   'Ready',
 ] as const;
@@ -36,7 +36,7 @@ export default function GameBuilderPage() {
   const [mcqMeta, setMcqMeta] = useState<MCQGenerateResponse['meta'] | null>(null);
   const [brief, setBrief] = useState<GameBrief | null>(null);
   const [briefMeta, setBriefMeta] = useState<GameBriefGenerateResponse['meta'] | null>(null);
-  const [result, setResult] = useState<GenerateGameResponse | null>(null);
+  const [result, setResult] = useState<GenerateGameResponse | EngineFromBriefResponse | null>(null);
   const [step, setStep] = useState<Step>('idle');
   const [activeProgress, setActiveProgress] = useState<number>(-1);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export default function GameBuilderPage() {
 
   const onDimensionChange = (d: Dimension) => {
     setDimension(d);
-    const list = d === '2D' ? GENRES_2D : GENRES_3D;
+    const list = d === '2D' ? GENRES_2D : d === '3D' ? GENRES_3D : GENRES_HYBRID;
     if (!list.includes(genre as never)) setGenre(list[0]);
   };
 
@@ -102,8 +102,8 @@ export default function GameBuilderPage() {
 
       setStep('generating-game');
       setActiveProgress(3);
-      const res = await generationApi.generateGame({
-        prompt, answers, gameType: genre, dimension, model: modelForRequest, saveToDb: true,
+      const res = await engineApi.fromBrief({
+        prompt, answers, gameType: genre, dimension, brief: briefRes.brief, model: modelForRequest,
       });
       setActiveProgress(4);
       setResult(res);
@@ -117,7 +117,7 @@ export default function GameBuilderPage() {
   };
 
   const editGame = async () => {
-    if (!result || !editPrompt.trim()) return;
+    if (!result || !('gameJSON' in result) || !editPrompt.trim()) return;
     setError(null);
     setEditing(true);
     try {
@@ -174,12 +174,13 @@ export default function GameBuilderPage() {
               <select value={dimension} onChange={(e) => onDimensionChange(e.target.value as Dimension)}>
                 <option value="2D">2D</option>
                 <option value="3D">3D</option>
+                <option value="hybrid">Hybrid</option>
               </select>
             </div>
             <div style={{ minWidth: 200, flex: 1 }}>
               <label>Genre</label>
               <select value={genre} onChange={(e) => setGenre(e.target.value as Genre)}>
-                {(dimension === '2D' ? GENRES_2D : GENRES_3D).map((g) => (
+                {(dimension === '2D' ? GENRES_2D : dimension === '3D' ? GENRES_3D : GENRES_HYBRID).map((g) => (
                   <option key={g} value={g}>{g}</option>
                 ))}
               </select>
@@ -299,24 +300,31 @@ export default function GameBuilderPage() {
         <section className="card" style={{ padding: 20 }}>
           <div className="row between" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: 18 }}>{result.gameJSON.metadata.gameTitle}</h2>
+              <h2 style={{ margin: 0, fontSize: 18 }}>{resultTitle(result)}</h2>
               <div className="muted" style={{ fontSize: 12 }}>
-                {result.gameJSON.metadata.genre} · {result.gameJSON.metadata.dimension}
+                {resultGenre(result)} / {resultDimension(result)}
                 {result.meta.model && ` · ${result.meta.model}`}
                 {typeof result.meta.durationMs === 'number' && ` · ${(result.meta.durationMs / 1000).toFixed(1)}s`}
                 {result.meta.attempts && result.meta.attempts > 1 && ` · ${result.meta.attempts} attempts`}
-                {result.meta.fallback && <span className="badge amber" style={{ marginLeft: 8 }}>fallback</span>}
+                {'fallback' in result.meta && result.meta.fallback && <span className="badge amber" style={{ marginLeft: 8 }}>fallback</span>}
               </div>
             </div>
             <div className="row" style={{ gap: 8 }}>
-              {result.gameId && (
+              {'gameId' in result && result.gameId && (
                 <button className="btn secondary sm" onClick={() => navigate(`/games/${result.gameId}`)}>Open in My Games</button>
               )}
             </div>
           </div>
 
-          <GamePreview htmlString={result.htmlString} title={result.gameJSON.metadata.gameTitle} />
+          {'htmlString' in result ? (
+            <GamePreview htmlString={result.htmlString} title={result.gameJSON.metadata.gameTitle} />
+          ) : (
+            <div className="definition-preview">
+              <pre>{JSON.stringify(result.gameDefinition, null, 2)}</pre>
+            </div>
+          )}
 
+          {'gameJSON' in result && (
           <div className="card" style={{ marginTop: 16, padding: 16, background: 'var(--gray-25)' }}>
             <label>Refine with a follow-up prompt</label>
             <div className="row" style={{ gap: 8, alignItems: 'stretch' }}>
@@ -339,10 +347,28 @@ export default function GameBuilderPage() {
               Try: “Add a boss enemy”, “Make it harder”, “Use a forest theme”.
             </div>
           </div>
+          )}
         </section>
       )}
     </div>
   );
+}
+
+function resultTitle(result: GenerateGameResponse | EngineFromBriefResponse): string {
+  if ('gameJSON' in result) return String(result.gameJSON.metadata.gameTitle || 'Generated game');
+  const metadata = (result.gameDefinition as { metadata?: { title?: string } })?.metadata;
+  return metadata?.title || result.brief.title || 'Generated GameDefinition';
+}
+
+function resultGenre(result: GenerateGameResponse | EngineFromBriefResponse): string {
+  if ('gameJSON' in result) return String(result.gameJSON.metadata.genre || 'unknown');
+  const metadata = (result.gameDefinition as { metadata?: { genre?: string } })?.metadata;
+  return metadata?.genre || result.brief.genre || 'unknown';
+}
+
+function resultDimension(result: GenerateGameResponse | EngineFromBriefResponse): string {
+  if ('gameJSON' in result) return String(result.gameJSON.metadata.dimension || 'unknown');
+  return result.brief.dimension || 'hybrid';
 }
 
 function AgentMeta({ label, meta, compact = false }: {

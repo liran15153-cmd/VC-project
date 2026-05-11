@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Normalized AI Fixture",
+    "description": "Accepted only after explicit, warning-producing normalizations.",
+    "genre": "test"
+  },
+  "engine": {
+    "enable3D": false,
+    "enable2D": false,
+    "enablePhysics": false,
+    "gravity": { "x": 0, "y": -9.81, "z": 0 }
+  },
+  "assets": [
+    {
+      "key": "hero-model",
+      "type": "gltf",
+      "url": "/assets/library/fixtures/hero.glb"
+    },
+    {
+      "key": "panel",
+      "type": "image",
+      "url": "/assets/library/fixtures/panel.png"
+    }
+  ],
+  "scenes": [
+    {
+      "key": "main",
+      "background": "0x101820",
+      "systems": ["physicsSync", "camera", "ui"],
+      "entities": [
+        {
+          "key": "hero",
+          "transform": {
+            "position": { "x": 0, "y": 1, "z": 0 },
+            "rotation": { "x": 0, "y": 0, "z": 0 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": { "x": 1, "y": 2, "z": 1 },
+            "color": "0xffcc00"
+          },
+          "model": {
+            "assetKey": "hero-model"
+          },
+          "sprite": {
+            "text": "GO",
+            "style": {
+              "color": "#fff"
+            }
+          },
+          "rigidBody": {
+            "type": "dynamic",
+            "collider": {
+              "shape": "box",
+              "size": { "x": 1, "y": 2, "z": 1 }
+            }
+          }
+        }
+      ],
+      "ui": [
+        {
+          "id": "hint",
+          "text": "Collect shards",
+          "style": {
+            "color": "#fff"
+          }
+        }
+      ]
+    }
+  ],
+  "initialScene": "missing"
+}

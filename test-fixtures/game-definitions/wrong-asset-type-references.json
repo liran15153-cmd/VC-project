@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Wrong Asset Type Fixture",
+    "description": "Invalid because a model references an image asset.",
+    "genre": "test"
+  },
+  "engine": {
+    "enable3D": true,
+    "enable2D": false,
+    "enablePhysics": true
+  },
+  "assets": [
+    {
+      "key": "hero-image",
+      "type": "image",
+      "url": "/assets/library/fixtures/hero.png"
+    }
+  ],
+  "scenes": [
+    {
+      "key": "main",
+      "entities": [
+        {
+          "key": "hero",
+          "model": {
+            "assetKey": "hero-image"
+          }
+        }
+      ]
+    }
+  ],
+  "initialScene": "main"
+}

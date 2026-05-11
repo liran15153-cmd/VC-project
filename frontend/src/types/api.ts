@@ -1,9 +1,11 @@
 // API contract types matching prototype/backend/src/schemas
 
-export type Dimension = '2D' | '3D';
+export type Dimension = '2D' | '3D' | 'hybrid';
+export type LegacyDimension = '2D' | '3D';
 
 export const GENRES_2D = ['platformer', 'shooter', 'runner', 'breakout', 'rpg', 'puzzle'] as const;
 export const GENRES_3D = ['explorer-fp', 'adventure-tp', 'platformer-3d', 'runner-3d', 'racing', 'flying'] as const;
+export const GENRES_HYBRID = [...GENRES_2D, ...GENRES_3D] as const;
 export type Genre2D = (typeof GENRES_2D)[number];
 export type Genre3D = (typeof GENRES_3D)[number];
 export type Genre = Genre2D | Genre3D;
@@ -150,7 +152,7 @@ export interface GameJSON {
     gameTitle: string;
     description?: string;
     genre: string;
-    dimension: Dimension;
+    dimension: LegacyDimension;
     difficulty?: 'easy' | 'medium' | 'hard';
     [k: string]: unknown;
   };
@@ -183,6 +185,24 @@ export interface GameListResponse {
 export interface EngineGenerateResponse {
   gameDefinition: unknown;
   meta: { provider?: string; model?: string; durationMs?: number; attempts?: number };
+}
+
+export interface EngineFromBriefResponse {
+  brief: GameBrief;
+  selectedAssets?: unknown[];
+  assetResolution?: unknown;
+  assetManifest?: unknown;
+  gameDefinition: unknown;
+  meta: {
+    provider?: string;
+    model?: string;
+    durationMs?: number;
+    attempts?: number;
+    selectedAssetCount?: number;
+    toolCalling?: unknown;
+    persistence?: string;
+    tokens?: TokenBalance;
+  };
 }
 
 export interface StatsResponse {

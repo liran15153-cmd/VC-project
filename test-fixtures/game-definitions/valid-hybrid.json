@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Valid Hybrid Fixture",
+    "description": "Hybrid v1 mixed composition: Three.js world, Phaser overlay, Rapier physics.",
+    "genre": "runner"
+  },
+  "engine": {
+    "width": 1280,
+    "height": 720,
+    "enable3D": true,
+    "enable2D": true,
+    "enablePhysics": true,
+    "gravity": { "x": 0, "y": -9.81, "z": 0 }
+  },
+  "state": {
+    "score": 0
+  },
+  "assets": [
+    {
+      "key": "runner-model",
+      "type": "gltf",
+      "url": "/assets/library/fixtures/runner.glb"
+    },
+    {
+      "key": "hud-icon",
+      "type": "image",
+      "url": "/assets/library/fixtures/hud-icon.png"
+    },
+    {
+      "key": "coin-sound",
+      "type": "audio",
+      "url": "/assets/library/fixtures/coin.wav"
+    }
+  ],
+  "scenes": [
+    {
+      "key": "main",
+      "systems": ["physicsSync", "camera", "behavior", "ui", "audio"],
+      "lights": [
+        {
+          "type": "ambient",
+          "color": "#ffffff",
+          "intensity": 0.8
+        }
+      ],
+      "entities": [
+        {
+          "key": "runner",
+          "transform": {
+            "position": { "x": 0, "y": 1, "z": 0 },
+            "rotation": { "x": 0, "y": 0, "z": 0, "w": 1 },
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "model": {
+            "assetKey": "runner-model",
+            "scale": { "x": 1, "y": 1, "z": 1 }
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "hud-icon",
+            "x": 48,
+            "y": 48,
+            "followIn3D": true
+          },
+          "rigidBody": {
+            "type": "dynamic",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": { "x": 0.5, "y": 1, "z": 0.5 }
+            }
+          },
+          "cameraTarget": {
+            "lerp": 4,
+            "offset": { "x": 0, "y": 6, "z": 12 }
+          }
+        }
+      ],
+      "ui": [
+        {
+          "type": "text",
+          "id": "score",
+          "text": "Score: 0",
+          "x": 24,
+          "y": 24
+        }
+      ],
+      "audio": [
+        {
+          "trigger": "onCollect",
+          "asset": "coin-sound"
+        }
+      ]
+    }
+  ],
+  "initialScene": "main"
+}

@@ -43,7 +43,7 @@ export { isMobile, isPortrait, getOrientation } from './utils/device';
 // Assets + JSON runtime
 export { AssetManager } from './assets';
 export type { AssetDefinition, AssetType, LoadedAsset } from './assets';
-export { ENGINE_CAPABILITIES, GameRuntime, Registry, parseGameDefinition } from './runtime';
+export { ENGINE_CAPABILITIES, GameRuntime, Registry, parseGameDefinition, parseGameDefinitionWithWarnings } from './runtime';
 export {
   AssetDefinitionSchema,
   AudioRuleSchema,
@@ -67,6 +67,7 @@ export type {
   BehaviorDefinition,
   EntityDefinition,
   GameDefinition,
+  GameDefinitionNormalizationWarning,
   GameRuntimeLoadOptions,
   LightDefinition,
   MeshDefinition,

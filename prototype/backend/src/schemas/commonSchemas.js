@@ -68,6 +68,7 @@ const vector3Schema = z.object({
 
 const difficultyEnum = z.enum(['easy', 'medium', 'hard']);
 const dimensionEnum = z.enum(['2D', '3D']);
+const creativeDimensionEnum = z.enum(['2D', '3D', 'hybrid']);
 
 const genres2D = ['platformer', 'shooter', 'runner', 'breakout', 'rpg', 'puzzle'];
 const genres3D = ['explorer-fp', 'adventure-tp', 'platformer-3d', 'runner-3d', 'racing', 'flying'];
@@ -113,6 +114,7 @@ module.exports = {
   // enums
   difficultyEnum,
   dimensionEnum,
+  creativeDimensionEnum,
   genre2DEnum,
   genre3DEnum,
   allGenresEnum,

@@ -57,6 +57,7 @@ CRITICAL OUTPUT FORMAT:
 - Keep games browser-playable with primitive meshes when no useful existing asset is supplied.
 - When existing assets are supplied, use only those asset IDs/URLs and never invent asset paths.
 - If the user's game idea asks for a feature not supported yet, approximate it with supported primitives and explain the limitation in metadata.description.
+- Hybrid v1 means mixed runtime composition, not Phaser Arcade gameplay simulation: Three.js world/model visuals, Phaser sprites/UI/overlays, and Rapier physics in one GameDefinition.
 
 SUPPORTED CAPABILITIES:
 ${JSON.stringify(ENGINE_CAPABILITIES, null, 2)}
@@ -106,7 +107,10 @@ MINIMUM PLAYABILITY RULES:
 
 RUNTIME NOTES:
 - Gravity uses Y-up 3D coordinates; downward gravity is negative Y.
+- Every assetKey reference must resolve to a top-level assets[] entry. Do not reference undeclared assets.
 - GLB/GLTF assets must be declared in top-level assets with type "gltf", then placed with entity.model.assetKey.
+- Sprite image references must use top-level asset type "image", "spritesheet", or "atlas", then placed with sprite.assetKey.
+- Audio references must use top-level asset type "audio", then placed in audio rules or playSound actions.
 - Model visuals are separate from physics. Use primitive rigidBody colliders for collisions.
 - Do not put both mesh and model on the same entity unless the mesh is intentionally unused fallback; prefer model + rigidBody for asset visuals.
 - Colliders use halfExtents for cuboids.
@@ -169,7 +173,11 @@ function buildEngineGenerationPrompt({ prompt, brief = null, assetCandidates = [
       '- If you use an asset, copy its id into assets[].key and entity.model.assetKey or sprite.assetKey.',
       '- Copy its publicPath exactly into assets[].url.',
       '- For GLB/GLTF assets, assets[].type must be "gltf".',
+      '- For UI/HUD/overlay sprites, assets[].type must be "image", "spritesheet", or "atlas".',
+      '- For sound effects or music, assets[].type must be "audio".',
       '- Prefer GLB/GLTF for 3D characters, props, coins, platforms, hazards, and decorations.',
+      '- For hybrid briefs, use GLB/GLTF assets for Three.js world/model visuals and image/spritesheet/atlas assets only for Phaser UI/HUD/overlays.',
+      '- Do not generate Phaser Arcade gameplay as part of hybrid v1.',
       '- Do not use FBX, OBJ, MTL, or any asset not listed above.',
       ''
     );

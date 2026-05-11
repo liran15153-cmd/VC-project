@@ -38,15 +38,16 @@ function resolveAssetsForBriefWithRegistry({
   strictMissing
 }, registryIndex) {
   const startedAt = nowMs();
-  const targetEngine = targetEngineForBrief(brief, dimension);
+  const runtimeTarget = runtimeTargetForBrief(brief, dimension);
+  const targetEngine = runtimeTarget.primaryEngine;
   const context = buildContextText({ prompt, answers, gameType, dimension, brief });
   const intent = detectAssetIntent({ prompt, brief, context });
-  const requirements = buildAssetRequirements({ brief, context, targetEngine, intent });
+  const requirements = buildAssetRequirements({ brief, context, runtimeTarget, intent });
   const queryPlan = buildQueryPlan({
     prompt,
     brief,
     context,
-    targetEngine,
+    runtimeTarget,
     intent,
     requirements,
     selectedAssetIds,
@@ -76,7 +77,7 @@ function resolveAssetsForBriefWithRegistry({
       if (usedIds.has(id)) continue;
       const asset = registryIndex.indexes.byId.get(id);
       if (!asset || !isRuntimeUsableAsset(asset) || !isAssetUsableForRequirement(asset, requirement)) continue;
-      const entry = scoreAssetForRequirement(asset, requirement, context, targetEngine, queryPlan, selectedAssetIds.length > 0);
+      const entry = scoreAssetForRequirement(asset, requirement, context, queryPlan, selectedAssetIds.length > 0);
       if (entry.score > 0) scored.push(entry);
     }
 
@@ -94,7 +95,7 @@ function resolveAssetsForBriefWithRegistry({
         if (usedIds.has(id)) continue;
         const asset = registryIndex.indexes.byId.get(id);
         if (!asset || !isRuntimeUsableAsset(asset) || !isAssetUsableForRequirement(asset, requirement)) continue;
-        const entry = scoreAssetForRequirement(asset, requirement, context, targetEngine, queryPlan, false);
+        const entry = scoreAssetForRequirement(asset, requirement, context, queryPlan, false);
         if (entry.score > 0) scored.push(entry);
       }
     }
@@ -181,6 +182,9 @@ function resolveAssetsForBriefWithRegistry({
       agent: 'asset-resolver',
       strategy: 'deterministic-registry-ranking',
       targetEngine,
+      runtimeTarget: runtimeTarget.runtimeTarget,
+      primaryEngine: runtimeTarget.primaryEngine,
+      assetEngines: runtimeTarget.assetEngines,
       registryCandidateCount: registryIndex.totalAssets,
       totalAssets: registryIndex.totalAssets,
       candidateAssets: candidateAssetCount,
@@ -232,12 +236,15 @@ function buildRuntimeAssetManifest(assetIds, targetEngine) {
 function detectAssetIntent({ prompt, brief, context }) {
   const assetNeeds = (brief.assetPlan?.assetsToGenerate || []).join(' ');
   const source = normalize([prompt, brief.title, brief.genre, brief.oneSentencePitch, assetNeeds, brief.assetPlan?.visualStyle].join(' '));
-  const explicitOnly = matchesAny(source, [' only', 'ui only', 'audio only', 'controls only', 'tilemap only', 'model only', 'environment only', 'character only']);
+  const explicitOnly = matchesAny(source, ['ui only', 'audio only', 'controls only', 'tilemap only', 'model only', 'environment only', 'character only']);
+  const hasGameplayComposition = matchesAny(source, ['3d', 'three', 'world', 'gameplay', 'platformer', 'runner', 'collectible', 'hazard', 'rapier']);
+  const explicitControlsOnly = matchesAny(source, ['mobile controls only', 'controls only', 'touch controls only']);
+  const explicitUiOnly = matchesAny(source, ['ui only', 'hud only', 'menu only', 'interface only', 'ui kit']);
 
-  if (matchesAny(source, ['mobile controls only', 'add mobile controls', 'touch controls only', 'joystick', 'dpad']) && !matchesAny(source, ['full game', 'complete game'])) {
+  if (matchesAny(source, ['mobile controls only', 'add mobile controls', 'touch controls only', 'joystick', 'dpad']) && !matchesAny(source, ['full game', 'complete game']) && (explicitControlsOnly || !hasGameplayComposition)) {
     return { kind: 'mobile-controls-only', roles: ['ui'], reason: 'Mobile controls request should only create control UI requirements.' };
   }
-  if ((explicitOnly && matchesAny(source, ['ui', 'hud', 'menu', 'interface'])) || matchesAny(source, ['ui kit', 'hud only'])) {
+  if (explicitUiOnly || (explicitOnly && matchesAny(source, ['ui', 'hud', 'menu', 'interface']) && !hasGameplayComposition)) {
     return { kind: 'ui-only', roles: ['ui'], reason: 'UI-only request should not create gameplay requirements.' };
   }
   if ((explicitOnly && matchesAny(source, ['audio', 'music', 'sfx', 'sound'])) || matchesAny(source, ['audio pack', 'sfx only'])) {
@@ -259,8 +266,8 @@ function detectAssetIntent({ prompt, brief, context }) {
   return { kind: 'full-game', roles: [], reason: 'Full game brief needs gameplay, environment, and support assets.' };
 }
 
-function buildAssetRequirements({ brief, context, targetEngine, intent }) {
-  const is3D = targetEngine === 'three' || intent.kind === '3d-model-only';
+function buildAssetRequirements({ brief, context, runtimeTarget, intent }) {
+  const is3D = runtimeTarget.primaryEngine === 'three' || intent.kind === '3d-model-only';
 
   if (intent.kind === 'mobile-controls-only') {
     return assignRequirementIds([
@@ -341,11 +348,12 @@ function buildAssetRequirements({ brief, context, targetEngine, intent }) {
   return assignRequirementIds(requirements);
 }
 
-function buildQueryPlan({ prompt, brief, context, targetEngine, intent, requirements, selectedAssetIds, strictMissing, registryIndex }) {
+function buildQueryPlan({ prompt, brief, context, runtimeTarget, intent, requirements, selectedAssetIds, strictMissing, registryIndex }) {
+  const targetEngine = runtimeTarget.primaryEngine;
   const requiredRoles = [...new Set(requirements.map((requirement) => requirement.role))];
-  const dimension = normalize(brief.dimension || '').includes('3d') || targetEngine === 'three'
+  const dimension = runtimeTarget.runtimeTarget === '3D'
     ? '3D'
-    : normalize(brief.dimension) === 'hybrid'
+    : runtimeTarget.runtimeTarget === 'hybrid'
       ? 'hybrid'
       : '2D';
   const settings = config.assets;
@@ -357,7 +365,7 @@ function buildQueryPlan({ prompt, brief, context, targetEngine, intent, requirem
   const rankedPacks = rankPacks({
     packSummaries: registryIndex.packSummaries,
     context,
-    targetEngine,
+    runtimeTarget,
     dimension,
     requiredRoles,
     intent
@@ -393,6 +401,9 @@ function buildQueryPlan({ prompt, brief, context, targetEngine, intent, requirem
     requiredRoles,
     dimension,
     engine: targetEngine,
+    runtimeTarget: runtimeTarget.runtimeTarget,
+    primaryEngine: runtimeTarget.primaryEngine,
+    assetEngines: runtimeTarget.assetEngines,
     maxCandidatesPerRole: settings.maxCandidatesBeforeScoring,
     maxCandidatesBeforeScoring: settings.maxCandidatesBeforeScoring,
     shortlistPerRole: settings.shortlistPerRole,
@@ -409,7 +420,8 @@ function buildQueryPlan({ prompt, brief, context, targetEngine, intent, requirem
   };
 }
 
-function rankPacks({ packSummaries, context, targetEngine, dimension, requiredRoles, intent }) {
+function rankPacks({ packSummaries, context, runtimeTarget, dimension, requiredRoles, intent }) {
+  const targetEngine = runtimeTarget.primaryEngine;
   return packSummaries.map((pack) => {
     let score = 0;
     const reasons = [];
@@ -426,7 +438,7 @@ function rankPacks({ packSummaries, context, targetEngine, dimension, requiredRo
     if (targetEngine === 'phaser' && pack.engines.length && !pack.engines.includes('phaser') && !needsAudio) {
       excludeReasons.push('Skipped because this is a pure 2D/Phaser request and the pack has no Phaser-compatible assets.');
     }
-    if (targetEngine === 'three' && needsGameplay && pack.types.every((type) => type !== 'gltf') && !needsUi && !needsAudio) {
+    if (targetEngine === 'three' && runtimeTarget.runtimeTarget !== 'hybrid' && needsGameplay && pack.types.every((type) => type !== 'gltf') && !needsUi && !needsAudio) {
       excludeReasons.push('Skipped because this is a 3D gameplay request and the pack has no GLB/GLTF assets.');
     }
     if (isUiOnly && needsGameplay && !needsUi && intent.kind !== 'mobile-controls-only') {
@@ -442,6 +454,10 @@ function rankPacks({ packSummaries, context, targetEngine, dimension, requiredRo
     if (pack.engines.includes(targetEngine)) {
       score += 20;
       reasons.push(`Matches ${targetEngine} runtime.`);
+    }
+    if (runtimeTarget.runtimeTarget === 'hybrid' && pack.engines.some((engine) => runtimeTarget.assetEngines.includes(engine))) {
+      score += 10;
+      reasons.push('Matches hybrid mixed runtime asset lane.');
     }
     if (dimension === 'hybrid' || pack.dimension === dimension || pack.dimension === 'hybrid' || pack.dimension === 'any') {
       score += 12;
@@ -493,7 +509,7 @@ function buildBoundedCandidates({ requirement, queryPlan, registryIndex, selecte
   const typeSet = unionIndexSets(registryIndex.indexes.byType, preferredTypesForRequirement(requirement));
   attemptedFilters.push(`type:${preferredTypesForRequirement(requirement).join('|')}`);
   attemptedFilters.push(`pack:${queryPlan.preferredPacks.join('|')}`);
-  const engineSet = engineSetForRequirement(registryIndex, requirement, queryPlan.engine);
+  const engineSet = engineSetForRequirement(registryIndex, requirement, queryPlan.engine, queryPlan);
   attemptedFilters.push(`engine:${queryPlan.engine}`);
   const dimensionSet = dimensionSetForRequirement(registryIndex, requirement, queryPlan.dimension);
   attemptedFilters.push(`dimension:${queryPlan.dimension}`);
@@ -581,18 +597,18 @@ function collectPerPackCandidates({ packIds, registryIndex, sets, maxCandidates 
   return ids;
 }
 
-function scoreAssetForRequirement(asset, requirement, context, targetEngine, queryPlan, allowReferenceAssets = false) {
+function scoreAssetForRequirement(asset, requirement, context, queryPlan, allowReferenceAssets = false) {
   const breakdown = {};
   let score = 0;
 
-  addScore(breakdown, 'engine', engineScore(asset, requirement, targetEngine));
+  addScore(breakdown, 'engine', engineScore(asset, requirement, queryPlan));
   addScore(breakdown, 'dimension', dimensionScore(asset.assetDimension, queryPlan.dimension, requirement));
   addScore(breakdown, 'type', typeScore(asset, requirement));
   addScore(breakdown, 'role', roleScore(asset, requirement));
   addScore(breakdown, 'pack', packScore(asset, queryPlan, context));
   addScore(breakdown, 'context', contextScore(asset, requirement, context, queryPlan));
   addScore(breakdown, 'quality', qualityScore(asset));
-  addScore(breakdown, 'penalties', penaltyScore(asset, requirement, targetEngine, allowReferenceAssets));
+  addScore(breakdown, 'penalties', penaltyScore(asset, requirement, queryPlan, allowReferenceAssets));
 
   for (const value of Object.values(breakdown)) score += value;
   return { asset, score, breakdown };
@@ -601,7 +617,7 @@ function scoreAssetForRequirement(asset, requirement, context, targetEngine, que
 function preScoreCandidate(asset, requirement, queryPlan) {
   let score = 0;
   if (queryPlan.preferredPacks.includes(asset.packId)) score += 20;
-  if (asset.normalizedEngines.includes(queryPlan.engine)) score += 12;
+  if (engineMatchesRequirement(asset, requirement, queryPlan)) score += 12;
   if (preferredTypesForRequirement(requirement).includes(asset.normalizedType)) score += 12;
   if (asset.normalizedRoleHints.includes(requirement.role)) score += 16;
   if (roleMatchesCategory(requirement.role, asset.normalizedCategory)) score += 10;
@@ -702,12 +718,37 @@ function isRuntimeUsableAsset(asset) {
 }
 
 function targetEngineForBrief(brief, dimension) {
+  return runtimeTargetForBrief(brief, dimension).primaryEngine;
+}
+
+function runtimeTargetForBrief(brief, dimension) {
   const requested = normalize(dimension || brief.dimension);
-  if (requested === '2d') return 'phaser';
-  if (requested === '3d' || requested === 'hybrid') return 'three';
+  if (requested === '2d') return {
+    runtimeTarget: '2D',
+    primaryEngine: 'phaser',
+    assetEngines: ['phaser']
+  };
+  if (requested === '3d') return {
+    runtimeTarget: '3D',
+    primaryEngine: 'three',
+    assetEngines: ['three']
+  };
+  if (requested === 'hybrid') return {
+    runtimeTarget: 'hybrid',
+    primaryEngine: 'three',
+    assetEngines: ['three', 'phaser']
+  };
   const text = normalize([dimension, brief.dimension, brief.runtimePlan?.threeRole, brief.runtimePlan?.phaserRole].join(' '));
-  if (text.includes('2d') && !text.includes('3d')) return 'phaser';
-  return 'three';
+  if (text.includes('2d') && !text.includes('3d')) return {
+    runtimeTarget: '2D',
+    primaryEngine: 'phaser',
+    assetEngines: ['phaser']
+  };
+  return {
+    runtimeTarget: '3D',
+    primaryEngine: 'three',
+    assetEngines: ['three']
+  };
 }
 
 function buildContextText({ prompt, answers, gameType, dimension, brief }) {
@@ -771,13 +812,16 @@ function inferRole(text) {
   return 'prop';
 }
 
-function engineSetForRequirement(registryIndex, requirement, engine) {
+function engineSetForRequirement(registryIndex, requirement, engine, queryPlan = null) {
   if (requirement.role === 'audio' || requirement.role === 'ui' || requirement.role === 'vfx') {
     return unionSets([
       registryIndex.indexes.byEngine.get('phaser') || new Set(),
       registryIndex.indexes.byEngine.get('three') || new Set(),
       registryIndex.indexes.byEngine.get('godot') || new Set()
     ]);
+  }
+  if (queryPlan?.runtimeTarget === 'hybrid') {
+    return unionIndexSets(registryIndex.indexes.byEngine, queryPlan.assetEngines);
   }
   return registryIndex.indexes.byEngine.get(engine) || new Set();
 }
@@ -840,8 +884,19 @@ function dimensionScore(assetDimension, requestedDimension, requirement) {
   return -24;
 }
 
-function engineScore(asset, requirement, targetEngine) {
-  if (asset.normalizedEngines.includes(targetEngine)) return 18;
+function engineMatchesRequirement(asset, requirement, queryPlan) {
+  if (requirement.role === 'audio') return true;
+  if (queryPlan.runtimeTarget === 'hybrid' && (requirement.role === 'ui' || requirement.role === 'vfx')) {
+    return asset.normalizedEngines.includes('phaser') || asset.normalizedEngines.includes('three');
+  }
+  if (queryPlan.runtimeTarget === 'hybrid') {
+    return asset.normalizedEngines.includes('three');
+  }
+  return asset.normalizedEngines.includes(queryPlan.primaryEngine || queryPlan.engine);
+}
+
+function engineScore(asset, requirement, queryPlan) {
+  if (engineMatchesRequirement(asset, requirement, queryPlan)) return 18;
   if (requirement.role === 'audio') return 8;
   if ((requirement.role === 'ui' || requirement.role === 'vfx') && asset.normalizedEngines.includes('phaser')) return 12;
   return -24;
@@ -901,12 +956,12 @@ function qualityScore(asset) {
   return score;
 }
 
-function penaltyScore(asset, requirement, targetEngine, allowReferenceAssets) {
+function penaltyScore(asset, requirement, queryPlan, allowReferenceAssets) {
   let penalty = 0;
   if (GAMEPLAY_ROLES.has(requirement.role) && asset.normalizedCategory === 'ui') penalty -= 45;
   if (requirement.role !== 'audio' && asset.normalizedType === 'audio') penalty -= 60;
   if (requirement.role !== 'ui' && asset.packId.includes('mobile-controls')) penalty -= 40;
-  if (targetEngine === 'three' && requirement.role !== 'ui' && requirement.role !== 'audio' && asset.normalizedType !== 'gltf') penalty -= 80;
+  if (queryPlan.primaryEngine === 'three' && requirement.role !== 'ui' && requirement.role !== 'audio' && asset.normalizedType !== 'gltf') penalty -= 80;
   if (!allowReferenceAssets && isReferenceOnlyAsset(asset)) penalty -= 80;
   return penalty;
 }
@@ -1037,5 +1092,6 @@ module.exports = {
   detectAssetIntent,
   resolveAssetsForBrief,
   resolveAssetsForBriefWithRegistry,
+  runtimeTargetForBrief,
   targetEngineForBrief
 };
