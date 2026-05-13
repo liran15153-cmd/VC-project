@@ -4,13 +4,14 @@ import { briefApi, engineApi, generationApi, mcqApi } from '../../api/endpoints'
 import { useAuth } from '../auth/AuthContext';
 import { useHealth } from '../health/HealthContext';
 import GamePreview from '../game-preview/GamePreview';
+import GameDefinitionPreview, { type PreviewStatusEvent } from '../game-preview/GameDefinitionPreview';
 import type {
   Dimension, EngineFromBriefResponse, GameBrief, GameBriefGenerateResponse, GenerateGameResponse, Genre, MCQGenerateResponse, MCQQuestion,
 } from '../../types/api';
 import { GENRES_2D, GENRES_3D, GENRES_HYBRID } from '../../types/api';
 import './GameBuilderPage.css';
 
-type Step = 'idle' | 'generating-mcq' | 'awaiting-answers' | 'generating-brief' | 'generating-game' | 'ready' | 'error';
+type Step = 'idle' | 'generating-mcq' | 'awaiting-answers' | 'generating-brief' | 'generating-game' | 'preview-loading' | 'preview-running' | 'ready' | 'error';
 
 const PROGRESS_STEPS = [
   'Checking backend',
@@ -43,6 +44,7 @@ export default function GameBuilderPage() {
   const [editPrompt, setEditPrompt] = useState('');
   const [editing, setEditing] = useState(false);
   const [selectedModel, setSelectedModel] = useState('');
+  const [showDefinitionJSON, setShowDefinitionJSON] = useState(false);
 
   const offline = status === 'offline';
   const generationDisabled = offline || !aiConfigured;
@@ -105,14 +107,34 @@ export default function GameBuilderPage() {
       const res = await engineApi.fromBrief({
         prompt, answers, gameType: genre, dimension, brief: briefRes.brief, model: modelForRequest,
       });
-      setActiveProgress(4);
       setResult(res);
       if (res.meta?.tokens) setTokens(res.meta.tokens);
-      setActiveProgress(5);
-      setStep('ready');
+      if (hasPlayableHtml(res)) {
+        setActiveProgress(5);
+        setStep('ready');
+      } else {
+        // Preview only counts as "Running" / "Ready" once the GAME_ENGINE
+        // iframe actually reports it. Until then, hold on step 3.
+        setStep('preview-loading');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate game');
       setStep('error');
+    }
+  };
+
+  const onPreviewStatus = (event: PreviewStatusEvent) => {
+    if (event.phase === 'running') {
+      setStep('preview-running');
+      setActiveProgress(4);
+    } else if (event.phase === 'ready') {
+      setStep('ready');
+      setActiveProgress(5);
+    } else if (event.phase === 'error') {
+      setStep('error');
+      const err = event.state.error;
+      const detail = err ? `${err.category}: ${err.message}` : 'GAME_ENGINE preview failed to load the GameDefinition.';
+      setError(detail);
     }
   };
 
@@ -140,7 +162,7 @@ export default function GameBuilderPage() {
 
   const reset = () => {
     setQuestions([]); setAnswers({}); setMcqMeta(null); setBrief(null); setBriefMeta(null); setResult(null);
-    setStep('idle'); setActiveProgress(-1); setError(null);
+    setStep('idle'); setActiveProgress(-1); setError(null); setShowDefinitionJSON(false);
   };
 
   return (
@@ -279,8 +301,12 @@ export default function GameBuilderPage() {
           <h2 className="panel-title">Progress</h2>
           <ol className="progress-list">
             {PROGRESS_STEPS.map((label, i) => {
-              const done = activeProgress > i || step === 'ready';
-              const active = activeProgress === i && step !== 'ready';
+              const done = step === 'ready' ? true : activeProgress > i;
+              // "Running preview" (i=4) is only active once the iframe reports
+              // it; "Ready" (i=5) only flips to done once the engine signals it.
+              let active = activeProgress === i && step !== 'ready';
+              if (i === 4) active = step === 'preview-loading' || step === 'preview-running';
+              if (i === 5) active = false;
               return (
                 <li key={label} className={`progress-step${done ? ' done' : ''}${active ? ' active' : ''}`}>
                   <span className="progress-dot">{done ? '✓' : i + 1}</span>
@@ -319,9 +345,34 @@ export default function GameBuilderPage() {
           {'htmlString' in result ? (
             <GamePreview htmlString={result.htmlString} title={result.gameJSON.metadata.gameTitle} />
           ) : (
-            <div className="definition-preview">
-              <pre>{JSON.stringify(result.gameDefinition, null, 2)}</pre>
-            </div>
+            <>
+              <GameDefinitionPreview
+                gameDefinition={result.gameDefinition}
+                title={resultTitle(result)}
+                onStatusChange={onPreviewStatus}
+              />
+              <div className="row" style={{ marginTop: 12, gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="definition-debug-toggle"
+                  onClick={() => setShowDefinitionJSON((v) => !v)}
+                  aria-expanded={showDefinitionJSON}
+                >
+                  {showDefinitionJSON ? 'Hide' : 'Show'} GameDefinition JSON
+                </button>
+                {typeof result.meta?.selectedAssetCount === 'number' && (
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    {result.meta.selectedAssetCount} asset{result.meta.selectedAssetCount === 1 ? '' : 's'} resolved
+                  </span>
+                )}
+                {'assetResolution' in result && <ResolverSummary meta={result.meta} />}
+              </div>
+              {showDefinitionJSON && (
+                <div className="definition-preview" style={{ marginTop: 12 }} data-testid="game-definition-json">
+                  <pre>{JSON.stringify(result.gameDefinition, null, 2)}</pre>
+                </div>
+              )}
+            </>
           )}
 
           {'gameJSON' in result && (
@@ -352,6 +403,12 @@ export default function GameBuilderPage() {
       )}
     </div>
   );
+}
+
+function hasPlayableHtml(
+  result: GenerateGameResponse | EngineFromBriefResponse,
+): result is GenerateGameResponse {
+  return 'htmlString' in result && typeof result.htmlString === 'string' && result.htmlString.length > 0;
 }
 
 function resultTitle(result: GenerateGameResponse | EngineFromBriefResponse): string {
@@ -403,6 +460,25 @@ function AgentMeta({ label, meta, compact = false }: {
         {meta.tokenOptimized && <span className="badge">token saved</span>}
       </div>
     </div>
+  );
+}
+
+function ResolverSummary({ meta }: { meta: EngineFromBriefResponse['meta'] }) {
+  const warning = meta.compatibilityWarningCount || 0;
+  const missing = meta.missingAssetCount || 0;
+  const substitutions = meta.substitutionCount || 0;
+  const dominantPack = meta.dominantPack;
+  const gameType = meta.gameType;
+  const hasAnySignal = warning || missing || substitutions || dominantPack || gameType;
+  if (!hasAnySignal) return null;
+  return (
+    <span className="muted" style={{ fontSize: 12, display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+      {gameType && <span>· type: {gameType}</span>}
+      {dominantPack && <span>· pack: {dominantPack}</span>}
+      {substitutions > 0 && <span>· {substitutions} substitution{substitutions === 1 ? '' : 's'}</span>}
+      {missing > 0 && <span className="badge amber">{missing} missing</span>}
+      {warning > 0 && <span className="badge">{warning} warning{warning === 1 ? '' : 's'}</span>}
+    </span>
   );
 }
 

@@ -1,7 +1,7 @@
 import { api, getApiBase, getToken, request } from './client';
 import type {
-  AuthResponse, Dimension, EditGameResponse, EngineFromBriefResponse, EngineGenerateResponse, GameBrief, GameJSON, GameListResponse, LegacyDimension,
-  GameBriefGenerateResponse, Genre, GenerateGameResponse, HealthResponse, MCQGenerateResponse, MeResponse, SavedGame,
+  AuthResponse, Dimension, EditGameResponse, EngineFromBriefResponse, EngineGenerateResponse, GameBrief, GameJSON, GameListResponse,
+  GameBriefGenerateResponse, Genre, HealthResponse, MCQGenerateResponse, MeResponse, SavedGame,
   StatsEventsResponse, StatsResponse, TokenBalance,
 } from '../types/api';
 
@@ -39,15 +39,6 @@ export const briefApi = {
 };
 
 export const generationApi = {
-  generateGame: (data: {
-    prompt: string;
-    answers?: Record<string, string>;
-    gameType: Genre;
-    dimension: LegacyDimension;
-    model?: string;
-    saveToDb?: boolean;
-  }) => api.post<GenerateGameResponse>('/generate-game', data),
-
   editGame: (data: {
     gameId?: string;
     gameJSON?: GameJSON;

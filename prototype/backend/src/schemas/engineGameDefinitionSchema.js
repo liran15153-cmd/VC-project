@@ -30,9 +30,24 @@ const stateValueSchema = z.union([z.number().finite(), z.string(), z.boolean()])
 const assetUrlSchema = z.string().min(1).refine((url) => {
   const trimmed = url.trim();
   if (!trimmed || trimmed.startsWith('//') || trimmed.includes('..')) return false;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed.startsWith('data:');
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return isAllowedRemoteAssetUrl(trimmed);
   return true;
-}, 'asset url must be same-origin relative or data:');
+}, 'asset url must be same-origin relative, data:, or Supabase Storage.');
+
+function isAllowedRemoteAssetUrl(url) {
+  if (url.startsWith('data:')) return true;
+  try {
+    const parsed = new URL(url);
+    const isSupabaseCloud = parsed.protocol === 'https:' && parsed.hostname.endsWith('.supabase.co');
+    const isLocalSupabase =
+      parsed.protocol === 'http:' &&
+      (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost') &&
+      parsed.port === '54321';
+    return (isSupabaseCloud || isLocalSupabase) && parsed.pathname.startsWith('/storage/v1/object/');
+  } catch {
+    return false;
+  }
+}
 
 const defaultTransform = {
   position: { x: 0, y: 0, z: 0 },

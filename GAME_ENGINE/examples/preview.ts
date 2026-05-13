@@ -1,85 +1,160 @@
-import { Engine, GameRuntime, parseGameDefinitionWithWarnings, type GameDefinition, type GameDefinitionNormalizationWarning } from '../src';
+/**
+ * LOOMIER preview iframe entry.
+ *
+ * This file is intentionally thin: protocol parsing, lifecycle and error
+ * handling live in PreviewController. Everything here is wiring between the
+ * browser (postMessage / DOM / window-level errors) and the controller.
+ */
 
-const MESSAGE_IN = 'LOOMIER_PREVIEW_GAME_DEFINITION';
-const MESSAGE_OUT = 'LOOMIER_PREVIEW_STATUS';
+import {
+  PreviewController,
+  isPreviewCommand,
+  type PreviewEvent,
+} from '../src/preview';
+import { Engine } from '../src/core/Engine';
+import { GameRuntime } from '../src/runtime/GameRuntime';
 
-const gameRoot = document.querySelector<HTMLDivElement>('#game-root')!;
-const statusEl = document.querySelector<HTMLDivElement>('#status')!;
+const gameRoot = document.querySelector<HTMLDivElement>('#game-root');
+const fallback = document.querySelector<HTMLDivElement>('#fallback');
+if (!gameRoot || !fallback) {
+  throw new Error('preview.html is missing #game-root or #fallback nodes.');
+}
 
-let engine: Engine | null = null;
-let runtime: GameRuntime | null = null;
-let lastWarnings: GameDefinitionNormalizationWarning[] = [];
+let parentOrigin: string | null = readReferrerOrigin();
 
-window.addEventListener('message', (event) => {
-  const message = event.data as { type?: string; gameDefinition?: unknown } | null;
-  if (!message || message.type !== MESSAGE_IN) return;
-  void runDefinition(message.gameDefinition);
+function postToParent(event: PreviewEvent): void {
+  if (!window.parent || window.parent === window) return;
+  // When we don't know the parent yet (no referrer) fall back to '*'. The
+  // parent still validates event.source so this is acceptable for first
+  // contact only.
+  const target = parentOrigin ?? '*';
+  window.parent.postMessage(event, target);
+}
+
+const controller = new PreviewController({
+  container: gameRoot,
+  emit: (event) => {
+    updateFallback(event);
+    postToParent(event);
+  },
+  engineFactory: (config) => new Engine(config),
+  runtimeFactory: (engine) => new GameRuntime(engine),
 });
 
-setStatus('ready', 'Preview ready. Waiting for GameDefinition...');
-postStatus('ready');
+window.addEventListener('message', (event) => {
+  // Lock to the first origin we observe so subsequent messages from
+  // different windows are rejected. Synthetic events in some environments
+  // have an empty origin; allow those through (the source check below is
+  // the primary defence).
+  if (parentOrigin === null && event.origin) {
+    parentOrigin = event.origin;
+  } else if (parentOrigin && event.origin && event.origin !== parentOrigin) {
+    return;
+  }
+  if (event.source !== window.parent) return;
+  if (!isPreviewCommand(event.data)) return;
+  void controller.handleCommand(event.data);
+});
 
-async function runDefinition(input: unknown): Promise<void> {
+window.addEventListener('error', (event) => {
+  controller.reportRuntimeError(event.error ?? event.message);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  controller.reportRuntimeError(event.reason);
+});
+
+// Expose for dev-console debugging.
+(window as unknown as { __loomierPreview: PreviewController }).__loomierPreview = controller;
+
+// Announce ourselves to the parent — must happen after listeners are wired.
+controller.announce(window.location.origin);
+
+function readReferrerOrigin(): string | null {
+  if (!document.referrer) return null;
   try {
-    setStatus('running', 'Validating GameDefinition...');
-    postStatus('running');
-
-    const parsed = parseGameDefinitionWithWarnings(input);
-    const definition = parsed.definition;
-    lastWarnings = parsed.warnings;
-    postStatus('running', { warningCount: lastWarnings.length, warnings: lastWarnings });
-    await destroyCurrent();
-    gameRoot.replaceChildren();
-
-    engine = new Engine({
-      container: gameRoot,
-      background: definition.engine.background ?? '#0b0f16',
-      enable3D: definition.engine.enable3D,
-      enable2D: definition.engine.enable2D,
-      enablePhysics: definition.engine.enablePhysics,
-      gravity: definition.engine.gravity,
-      fatalOnSystemError: false,
-    });
-    runtime = new GameRuntime(engine);
-
-    setStatus('running', `Loading ${definition.assets.length} assets...`);
-    await engine.init();
-    await runtime.load(definition);
-    engine.start();
-
-    exposeRuntime(definition);
-    setStatus('ready', `Running: ${definition.metadata.title}${lastWarnings.length ? ` (${lastWarnings.length} warnings)` : ''}`);
-    postStatus('ready', { title: definition.metadata.title, warningCount: lastWarnings.length, warnings: lastWarnings });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    setStatus('error', message);
-    postStatus('error', { error: message });
+    return new URL(document.referrer).origin;
+  } catch {
+    return null;
   }
 }
 
-async function destroyCurrent(): Promise<void> {
-  if (!engine) return;
-  engine.destroy();
-  engine = null;
-  runtime = null;
+function updateFallback(event: PreviewEvent): void {
+  if (!fallback) return;
+  switch (event.type) {
+    case 'preview:hello':
+      fallback.textContent = 'Preview ready. Waiting for GameDefinition…';
+      fallback.className = 'fallback ready';
+      return;
+    case 'preview:loading':
+      fallback.textContent = `Loading game: ${event.phase}…`;
+      fallback.className = 'fallback loading';
+      return;
+    case 'preview:loaded':
+      fallback.textContent = '';
+      fallback.className = 'fallback hidden';
+      return;
+    case 'preview:error': {
+      const lines = [
+        `<strong>${escapeHtml(humanCategory(event.error.category))}</strong>`,
+        escapeHtml(event.error.message),
+      ];
+      if (event.error.failedAssets?.length) {
+        lines.push(
+          '<ul>' +
+            event.error.failedAssets.map((a) => `<li>${escapeHtml(a.key)} — ${escapeHtml(a.reason)}</li>`).join('') +
+            '</ul>',
+        );
+      }
+      if (event.error.issues?.length) {
+        lines.push(
+          '<ul>' +
+            event.error.issues.slice(0, 6).map((i) => `<li>${escapeHtml(i.path || '(root)')}: ${escapeHtml(i.message)}</li>`).join('') +
+            '</ul>',
+        );
+      }
+      fallback.innerHTML = lines.join('<br>');
+      fallback.className = 'fallback error';
+      return;
+    }
+    case 'preview:destroyed':
+      fallback.textContent = 'Preview destroyed.';
+      fallback.className = 'fallback ready';
+      return;
+    default:
+      return;
+  }
 }
 
-function setStatus(kind: 'ready' | 'running' | 'error', message: string): void {
-  statusEl.className = kind === 'running' ? '' : kind;
-  statusEl.textContent = message;
+function humanCategory(category: string): string {
+  switch (category) {
+    case 'validation':
+      return 'GameDefinition validation failed';
+    case 'asset-unsupported':
+      return 'Unsupported asset type';
+    case 'asset-missing-reference':
+      return 'Asset reference missing';
+    case 'asset-load':
+      return 'Asset failed to load';
+    case 'engine-init':
+      return 'Engine could not start';
+    case 'runtime':
+      return 'Runtime error';
+    case 'protocol':
+      return 'Protocol error';
+    default:
+      return category;
+  }
 }
 
-function postStatus(status: 'ready' | 'running' | 'error', extra: Record<string, unknown> = {}): void {
-  window.parent?.postMessage({ type: MESSAGE_OUT, status, ...extra }, '*');
-}
-
-function exposeRuntime(definition: GameDefinition): void {
-  const target = window as unknown as {
-    engine: Engine;
-    runtime: GameRuntime;
-    gameDefinition: GameDefinition;
-  };
-  target.engine = engine!;
-  target.runtime = runtime!;
-  target.gameDefinition = definition;
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => {
+    switch (c) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case "'": return '&#39;';
+      default: return c;
+    }
+  });
 }

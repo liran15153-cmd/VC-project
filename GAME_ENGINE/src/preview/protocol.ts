@@ -1,0 +1,233 @@
+/* ============================================================================
+   LOOMIER Preview Protocol (v1)
+   ----------------------------------------------------------------------------
+   Versioned message contract between the React Builder (parent window) and the
+   GAME_ENGINE preview runtime (iframe).
+
+   The parent posts PreviewCommand objects; the iframe replies with PreviewEvent
+   objects. Both sides import these types so a drift would surface at compile
+   time. The frontend mirrors this file at:
+     frontend/src/features/game-preview/previewProtocol.ts
+   Keep the two in sync — the iframe is loaded as a built bundle, so the React
+   side cannot import this module directly at runtime.
+   ========================================================================= */
+
+export const PREVIEW_PROTOCOL_VERSION = 1 as const;
+
+export type PreviewMode = 'idle' | 'loading' | 'running' | 'paused' | 'error';
+
+export type PreviewLoadPhase =
+  | 'validating'
+  | 'asset-check'
+  | 'asset-load'
+  | 'scene-build'
+  | 'starting';
+
+export type PreviewErrorCategory =
+  | 'protocol'
+  | 'validation'
+  | 'asset-unsupported'
+  | 'asset-missing-reference'
+  | 'asset-load'
+  | 'engine-init'
+  | 'runtime';
+
+export interface PreviewWarning {
+  code?: string;
+  path?: string;
+  message?: string;
+  before?: unknown;
+  after?: unknown;
+}
+
+export interface PreviewError {
+  category: PreviewErrorCategory;
+  message: string;
+  phase?: PreviewLoadPhase | 'runtime';
+  issues?: Array<{ path: string; message: string }>;
+  failedAssets?: Array<{ key: string; url?: string; reason: string }>;
+  unsupportedTypes?: string[];
+  stack?: string;
+}
+
+export interface GameSummary {
+  title: string;
+  description?: string;
+  genre?: string;
+  schemaVersion: number;
+  assetCount: number;
+  loadedAssetCount: number;
+  failedAssetCount: number;
+  sceneCount: number;
+  activeScene: string;
+  uses3D: boolean;
+  uses2D: boolean;
+  usesPhysics: boolean;
+}
+
+export interface PreviewSnapshot extends GameSummary {
+  mode: PreviewMode;
+  warnings: PreviewWarning[];
+  uptimeMs: number;
+  frame: number;
+}
+
+// ─── Parent → Iframe ────────────────────────────────────────────────────────
+
+export interface PreviewCommandLoad {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:load';
+  requestId: string;
+  gameDefinition: unknown;
+}
+export interface PreviewCommandReload {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:reload';
+  requestId: string;
+}
+export interface PreviewCommandDestroy {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:destroy';
+  requestId: string;
+}
+export interface PreviewCommandPause {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:pause';
+  requestId: string;
+}
+export interface PreviewCommandResume {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:resume';
+  requestId: string;
+}
+export interface PreviewCommandSnapshot {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:get-snapshot';
+  requestId: string;
+}
+
+export type PreviewCommand =
+  | PreviewCommandLoad
+  | PreviewCommandReload
+  | PreviewCommandDestroy
+  | PreviewCommandPause
+  | PreviewCommandResume
+  | PreviewCommandSnapshot;
+
+export type PreviewCommandType = PreviewCommand['type'];
+
+// ─── Iframe → Parent ────────────────────────────────────────────────────────
+
+export interface PreviewEventHello {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:hello';
+  protocolVersion: number;
+  origin: string;
+}
+export interface PreviewEventLoading {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:loading';
+  requestId: string;
+  phase: PreviewLoadPhase;
+  detail?: string;
+}
+export interface PreviewEventLoaded {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:loaded';
+  requestId: string;
+  summary: GameSummary;
+  warnings: PreviewWarning[];
+}
+export interface PreviewEventWarning {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:warning';
+  requestId: string;
+  warnings: PreviewWarning[];
+}
+export interface PreviewEventError {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:error';
+  requestId: string | null;
+  error: PreviewError;
+}
+export interface PreviewEventDestroyed {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:destroyed';
+  requestId: string;
+}
+export interface PreviewEventPaused {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:paused';
+  requestId: string;
+}
+export interface PreviewEventResumed {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:resumed';
+  requestId: string;
+}
+export interface PreviewEventSnapshot {
+  v: typeof PREVIEW_PROTOCOL_VERSION;
+  type: 'preview:snapshot';
+  requestId: string;
+  snapshot: PreviewSnapshot;
+}
+
+export type PreviewEvent =
+  | PreviewEventHello
+  | PreviewEventLoading
+  | PreviewEventLoaded
+  | PreviewEventWarning
+  | PreviewEventError
+  | PreviewEventDestroyed
+  | PreviewEventPaused
+  | PreviewEventResumed
+  | PreviewEventSnapshot;
+
+export type PreviewEventType = PreviewEvent['type'];
+
+// ─── Type guards ────────────────────────────────────────────────────────────
+
+const COMMAND_TYPES = new Set<PreviewCommandType>([
+  'preview:load',
+  'preview:reload',
+  'preview:destroy',
+  'preview:pause',
+  'preview:resume',
+  'preview:get-snapshot',
+]);
+
+const EVENT_TYPES = new Set<PreviewEventType>([
+  'preview:hello',
+  'preview:loading',
+  'preview:loaded',
+  'preview:warning',
+  'preview:error',
+  'preview:destroyed',
+  'preview:paused',
+  'preview:resumed',
+  'preview:snapshot',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+export function isPreviewCommand(value: unknown): value is PreviewCommand {
+  if (!isRecord(value)) return false;
+  if (value.v !== PREVIEW_PROTOCOL_VERSION) return false;
+  if (typeof value.type !== 'string' || !COMMAND_TYPES.has(value.type as PreviewCommandType)) return false;
+  if (typeof value.requestId !== 'string' || value.requestId.length === 0) return false;
+  if (value.type === 'preview:load' && !('gameDefinition' in value)) return false;
+  return true;
+}
+
+export function isPreviewEvent(value: unknown): value is PreviewEvent {
+  if (!isRecord(value)) return false;
+  if (value.v !== PREVIEW_PROTOCOL_VERSION) return false;
+  if (typeof value.type !== 'string' || !EVENT_TYPES.has(value.type as PreviewEventType)) return false;
+  if (value.type === 'preview:hello') return true;
+  if (value.type === 'preview:error') {
+    return value.requestId === null || typeof value.requestId === 'string';
+  }
+  return typeof value.requestId === 'string';
+}

@@ -3,10 +3,13 @@
    ========================================================================= */
 
 function getGameSystemPrompt(dimension) {
-  if (dimension === '3D') return GAME_3D_SYSTEM_PROMPT;
+  const normalizedDimension = String(dimension || '2D').toLowerCase();
+
+  if (normalizedDimension === '3d') return GAME_3D_SYSTEM_PROMPT;
+  if (normalizedDimension === 'hybrid') return GAME_HYBRID_SYSTEM_PROMPT;
+
   return GAME_2D_SYSTEM_PROMPT;
 }
-
 const COMMON_RULES = `
 You generate production-ready game configuration JSON for Gaming Vibe Coding.
 Return one JSON object only. No markdown, no prose, no comments.
@@ -97,7 +100,162 @@ Required JSON Schema:
   "controls": { "scheme": "string", "mouseLook": "boolean", "actionKey": "string" }
 }
 }`;
+const GAME_HYBRID_SYSTEM_PROMPT = `${COMMON_RULES}
+You must return a JSON object for a hybrid runtime game.
 
+This platform uses one coherent hybrid runtime:
+- Three.js renders the 3D world, camera, lighting, models, and environment.
+- Phaser.js handles UI, HUD, menus, overlays, 2D feedback, and mobile controls.
+- Rapier handles physics, rigid bodies, collisions, gravity, and movement constraints.
+
+Do not treat Phaser, Three.js, and Rapier as separate game versions.
+They must describe one playable game.
+
+Required JSON Schema:
+{
+  "metadata": {
+    "gameTitle": "string",
+    "description": "string",
+    "genre": "explorer-fp|adventure-tp|platformer-3d|runner-3d|racing|flying|arcade-hybrid|action-hybrid|puzzle-hybrid",
+    "engine": "hybrid",
+    "dimension": "hybrid",
+    "difficulty": "easy|medium|hard",
+    "estimatedPlaytime": "string"
+  },
+  "runtime": {
+    "mode": "hybrid",
+    "threeRole": "3D world rendering, camera, lighting, models, and environment",
+    "phaserRole": "HUD, UI, menus, overlays, mobile controls, and 2D feedback",
+    "rapierRole": "physics, collisions, gravity, rigid bodies, and movement constraints"
+  },
+  "scene": {
+    "backgroundColor": "string",
+    "fog": {
+      "enabled": "boolean",
+      "color": "string",
+      "near": "number",
+      "far": "number"
+    }
+  },
+  "camera": {
+    "type": "third-person|first-person|top-down-3d|side-view-3d",
+    "fov": "number",
+    "near": "number",
+    "far": "number",
+    "initialPosition": {
+      "x": "number",
+      "y": "number",
+      "z": "number"
+    },
+    "followPlayer": "boolean"
+  },
+  "lighting": {
+    "ambient": {
+      "color": "string",
+      "intensity": "number"
+    },
+    "directional": {
+      "color": "string",
+      "intensity": "number",
+      "position": {
+        "x": "number",
+        "y": "number",
+        "z": "number"
+      },
+      "castShadow": "boolean"
+    },
+    "mood": "string"
+  },
+  "player": {
+    "model": "string",
+    "color": "number (0xRRGGBB)",
+    "size": {
+      "width": "number",
+      "height": "number",
+      "depth": "number"
+    },
+    "moveSpeed": "number",
+    "jumpForce": "number",
+    "lives": "number"
+  },
+  "physics": {
+    "system": "rapier",
+    "gravity": {
+      "x": "number",
+      "y": "number",
+      "z": "number"
+    },
+    "playerCollider": "cuboid|capsule|ball",
+    "debug": "boolean"
+  },
+  "world": {
+    "ground": {
+      "type": "plane|terrain|platform",
+      "size": "number",
+      "color": "number (0xRRGGBB)"
+    },
+    "obstacles": [
+      {
+        "type": "string",
+        "position": {
+          "x": "number",
+          "y": "number",
+          "z": "number"
+        },
+        "size": {
+          "width": "number",
+          "height": "number",
+          "depth": "number"
+        }
+      }
+    ],
+    "collectibles": [
+      {
+        "type": "string",
+        "position": {
+          "x": "number",
+          "y": "number",
+          "z": "number"
+        },
+        "value": "number"
+      }
+    ]
+  },
+  "enemies": {
+    "model": "string",
+    "color": "number (0xRRGGBB)",
+    "count": "number",
+    "spawnPositions": [
+      {
+        "x": "number",
+        "y": "number",
+        "z": "number"
+      }
+    ],
+    "moveSpeed": "number",
+    "behavior": "patrol|chase|guard|wander|stationary"
+  },
+  "ui": {
+    "renderer": "phaser",
+    "showHUD": "boolean",
+    "showScore": "boolean",
+    "showLives": "boolean",
+    "showTimer": "boolean",
+    "showCrosshair": "boolean",
+    "showMobileControls": "boolean"
+  },
+  "controls": {
+    "desktop": "keyboard-mouse|keyboard-only|mouse-only",
+    "mobile": "virtual-joystick|tap-to-move|swipe|buttons",
+    "mouseLook": "boolean",
+    "actionKey": "string"
+  },
+  "audio": {
+    "musicEnabled": "boolean",
+    "sfxEnabled": "boolean",
+    "theme": "string"
+  }
+}`;
 const LEGACY_MCQ_SYSTEM_PROMPT = `
 You are a game design question agent for an AI-assisted game creation platform.
 Help the creator shape the first playable version, not the whole future game.

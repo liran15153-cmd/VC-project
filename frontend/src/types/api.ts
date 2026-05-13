@@ -187,11 +187,110 @@ export interface EngineGenerateResponse {
   meta: { provider?: string; model?: string; durationMs?: number; attempts?: number };
 }
 
+export type ResolvedAssetType =
+  | 'image' | 'spritesheet' | 'atlas' | 'tilemap' | 'gltf' | 'audio';
+
+export interface ResolvedAsset {
+  id: string;
+  role: string;
+  requirementId?: string;
+  name: string;
+  type: ResolvedAssetType;
+  format?: string;
+  category?: string;
+  subcategory?: string;
+  tags?: string[];
+  engineCompatibility?: string[];
+  publicPath: string;
+  pack?: string;
+  sourcePack?: string;
+  sourceRelativePath?: string;
+  roleHints?: string[];
+  license?: string;
+  confidenceScore: number;
+  reason: string;
+}
+
+export interface CompatibilityWarning {
+  code: string;
+  severity: 'info' | 'warning';
+  message: string;
+}
+
+export interface AssetCoherence {
+  totalAssets: number;
+  uniquePacks: number;
+  gameplayUniquePacks: number;
+  dominantPack: string | null;
+  dominantGameplayPack: string | null;
+  packCounts: Record<string, number>;
+  uniqueStyleFamilies: number;
+  gameplayUniqueStyleFamilies: number;
+  dominantStyle: string | null;
+  styleFamilies: string[];
+  gameplayStyleFamilies: string[];
+  dominantTheme: string | null;
+  dimensions: Record<string, number>;
+  gameplayDimensions: Record<string, number>;
+}
+
+export interface AssetSubstitution {
+  requirementId: string;
+  role: string;
+  requested: string;
+  selectedAssetId: string;
+  confidenceScore: number;
+  reason: string;
+}
+
+export interface MissingAsset {
+  requirementId: string;
+  role: string;
+  count: number;
+  description: string;
+  searchedPacks?: string[];
+  attemptedFilters?: string[];
+  reason: string;
+}
+
+export interface RuntimeAssetManifest {
+  engine: string;
+  assets: Array<{ key: string; type: string; url: string }>;
+}
+
+export interface AssetResolutionMeta {
+  agent: string;
+  strategy: string;
+  targetEngine: string;
+  runtimeTarget: string;
+  primaryEngine: string;
+  assetEngines: string[];
+  totalAssets: number;
+  candidateAssets: number;
+  evaluatedAssets: number;
+  intent: string;
+  gameType?: string;
+  coherence?: AssetCoherence;
+  llmReranker?: { enabled: boolean; used: boolean; status: string };
+  llmRerankerUsed?: boolean;
+  durationMs: number;
+}
+
+export interface AssetResolution {
+  requirements: Array<{ id: string; role: string; quantity: number; description: string; keywords: string[]; priority: string }>;
+  selectedAssets: ResolvedAsset[];
+  substitutions: AssetSubstitution[];
+  missingAssets: MissingAsset[];
+  compatibilityWarnings: CompatibilityWarning[];
+  runtimeAssetManifest: RuntimeAssetManifest;
+  meta: AssetResolutionMeta;
+}
+
 export interface EngineFromBriefResponse {
   brief: GameBrief;
-  selectedAssets?: unknown[];
-  assetResolution?: unknown;
-  assetManifest?: unknown;
+  selectedAssets?: ResolvedAsset[];
+  assetResolution?: AssetResolution;
+  assetManifest?: RuntimeAssetManifest;
   gameDefinition: unknown;
   meta: {
     provider?: string;
@@ -199,7 +298,13 @@ export interface EngineFromBriefResponse {
     durationMs?: number;
     attempts?: number;
     selectedAssetCount?: number;
+    compatibilityWarningCount?: number;
+    missingAssetCount?: number;
+    substitutionCount?: number;
+    dominantPack?: string | null;
+    gameType?: string | null;
     toolCalling?: unknown;
+    normalizationWarningCount?: number;
     persistence?: string;
     tokens?: TokenBalance;
   };

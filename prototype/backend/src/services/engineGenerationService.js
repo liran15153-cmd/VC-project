@@ -499,13 +499,19 @@ function toolSummary(toolCalling = {}) {
 }
 
 function logToolSummary(toolCalling, result) {
+  const ar = result.assetResolution || {};
+  const coherence = ar.meta?.coherence || {};
   logger.info({
     model: result.model,
     complexity: toolCalling.complexity,
     toolAttempted: toolCalling.attempted,
     toolUsed: toolCalling.used,
-    selectedAssetCount: result.selectedAssets?.length || result.assetResolution?.selectedAssets?.length || 0,
-    missingAssetCount: result.assetResolution?.missingAssets?.length || 0,
+    selectedAssetCount: result.selectedAssets?.length || ar.selectedAssets?.length || 0,
+    missingAssetCount: ar.missingAssets?.length || 0,
+    substitutionCount: ar.substitutions?.length || 0,
+    compatibilityWarningCount: ar.compatibilityWarnings?.length || 0,
+    gameType: ar.meta?.gameType || null,
+    dominantPack: coherence.dominantGameplayPack || coherence.dominantPack || null,
     toolResultChars: toolCalling.toolResultChars,
     durationMs: result.durationMs,
     fallbackReason: toolCalling.reason || toolCalling.fallbackReason || null

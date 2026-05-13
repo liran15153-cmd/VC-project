@@ -52,6 +52,8 @@ router.post('/from-brief', validate(engineFromBriefGenerateSchema), async (req, 
     const debug = req.body.debug || req.query.debug === 'true' || req.query.debug === '1';
     const result = await generateEngineGameFromBrief({ ...req.body, debug });
 
+    const ar = result.assetResolution || {};
+    const coherence = ar.meta?.coherence || {};
     res.json({
       brief: result.brief,
       selectedAssets: result.selectedAssets,
@@ -64,6 +66,11 @@ router.post('/from-brief', validate(engineFromBriefGenerateSchema), async (req, 
         durationMs: result.durationMs,
         attempts: result.attempts,
         selectedAssetCount: result.selectedAssets.length,
+        compatibilityWarningCount: Array.isArray(ar.compatibilityWarnings) ? ar.compatibilityWarnings.length : 0,
+        missingAssetCount: Array.isArray(ar.missingAssets) ? ar.missingAssets.length : 0,
+        substitutionCount: Array.isArray(ar.substitutions) ? ar.substitutions.length : 0,
+        dominantPack: coherence.dominantGameplayPack || coherence.dominantPack || null,
+        gameType: ar.meta?.gameType || null,
         toolCalling: result.toolCalling,
         normalizationWarningCount: result.normalizationWarnings?.length || 0,
         persistence: 'supabase_pending'

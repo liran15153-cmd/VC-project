@@ -80,3 +80,32 @@ export type {
   UiDefinition,
   SystemFactory,
 } from './runtime';
+
+// Preview protocol + iframe runtime controller
+export {
+  PreviewController,
+  PREVIEW_PROTOCOL_VERSION,
+  isPreviewCommand,
+  isPreviewEvent,
+  preflightAssets,
+  categoriseValidationError,
+  categoriseLoadError,
+  buildSummary,
+} from './preview';
+export type {
+  GameSummary,
+  PreviewCommand,
+  PreviewCommandLoad,
+  PreviewCommandType,
+  PreviewControllerOptions,
+  PreviewEngineFactory,
+  PreviewError,
+  PreviewErrorCategory,
+  PreviewEvent,
+  PreviewEventType,
+  PreviewLoadPhase,
+  PreviewMode,
+  PreviewRuntimeFactory,
+  PreviewSnapshot,
+  PreviewWarning,
+} from './preview';
