@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Drift 06 unknown systems",
+    "description": "scenes[].systems with 'input'/'render' (always wired by engine) must be filtered out."
+  },
+  "engine": { "enable3D": false, "enable2D": true, "enablePhysics": false },
+  "scenes": [
+    {
+      "key": "main",
+      "systems": ["physicsSync", "input", "camera", "render", "behavior", "ui"],
+      "entities": []
+    }
+  ],
+  "initialScene": "main"
+}

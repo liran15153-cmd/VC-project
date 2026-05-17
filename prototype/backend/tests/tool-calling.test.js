@@ -367,6 +367,14 @@ test('engine from-brief mocked tool path returns assets and bounded debug', asyn
   assert.equal(result.toolCalling.selectedAssets.length <= result.toolCalling.budget.maxSelectedAssets, true);
   assert.ok(result.selectedAssets.some((asset) => asset.id === finalAsset.id));
   assert.equal(result.gameDefinition.assets[0].url, finalAsset.publicPath);
+  // Stage 1.5: debugDiagnostics must always be present as an array.
+  assert.ok(Array.isArray(result.debugDiagnostics), 'debugDiagnostics must be an array');
+  for (const d of result.debugDiagnostics) {
+    assert.ok(typeof d.code === 'string' && d.code.length > 0);
+    assert.ok(d.severity === 'error' || d.severity === 'warning');
+    assert.ok(typeof d.message === 'string');
+    assert.ok(typeof d.suggestedFixText === 'string');
+  }
 });
 
 test('engine from-brief mocked hybrid path returns previewable mixed GameDefinition metadata', async () => {
@@ -416,13 +424,18 @@ test('engine from-brief mocked hybrid path returns previewable mixed GameDefinit
               gravity: { x: 0, y: -12, z: 0 }
             },
             state: { score: 0 },
+            inputBindings: {
+              moveLeft: ['ArrowLeft', 'KeyA'],
+              moveRight: ['ArrowRight', 'KeyD'],
+              jump: ['Space']
+            },
             assets: [
               { key: modelAsset.id, type: 'gltf', url: modelAsset.publicPath },
               { key: uiAsset.id, type: uiAsset.type, url: uiAsset.publicPath }
             ],
             scenes: [{
               key: 'main',
-              systems: ['physicsSync', 'camera', 'ui'],
+              systems: ['physicsSync', 'camera', 'ui', 'behavior'],
               entities: [{
                 key: 'player',
                 transform: { position: { x: 0, y: 1, z: 0 } },
@@ -430,7 +443,18 @@ test('engine from-brief mocked hybrid path returns previewable mixed GameDefinit
                 sprite: { kind: 'image', assetKey: uiAsset.id, x: 48, y: 48, followIn3D: true },
                 rigidBody: { type: 'dynamic', collider: { shape: 'cuboid', halfExtents: { x: 0.5, y: 1, z: 0.5 } } },
                 cameraTarget: {}
+              }, {
+                key: 'ground',
+                tags: ['ground', 'world'],
+                transform: { position: { x: 0, y: -0.25, z: 0 } },
+                mesh: { shape: 'box', size: { x: 10, y: 0.5, z: 4 }, color: '#374151' },
+                rigidBody: { type: 'static', collider: { shape: 'cuboid', halfExtents: { x: 5, y: 0.25, z: 2 } } }
               }],
+              behaviors: [
+                { trigger: { type: 'inputDown', input: 'moveLeft' }, actions: [{ type: 'setVelocityX', target: 'player', value: -4 }] },
+                { trigger: { type: 'inputDown', input: 'moveRight' }, actions: [{ type: 'setVelocityX', target: 'player', value: 4 }] },
+                { trigger: { type: 'inputPressed', input: 'jump' }, actions: [{ type: 'applyImpulse', target: 'player', value: { x: 0, y: 7, z: 0 } }] }
+              ],
               ui: [{ type: 'text', text: 'Score: {score}' }]
             }],
             initialScene: 'main'
@@ -470,4 +494,6 @@ test('engine from-brief mocked hybrid path returns previewable mixed GameDefinit
   assert.equal(result.gameDefinition.assets.some((asset) => asset.key === finalModelAsset.id && asset.type === 'gltf'), true);
   assert.equal(result.gameDefinition.assets.some((asset) => asset.key === finalUiAsset.id && ['image', 'spritesheet', 'atlas'].includes(asset.type)), true);
   assert.equal(result.normalizationWarnings.length, 0);
+  // Stage 1.5: hybrid path must also produce a debugDiagnostics array.
+  assert.ok(Array.isArray(result.debugDiagnostics), 'debugDiagnostics must be an array');
 });

@@ -32,7 +32,12 @@ const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const FIXTURES_DIR = path.join(__dirname, 'game-definitions');
 
-interface Expectation { outcome: 'loaded' | PreviewErrorCategory; expectWarnings?: boolean; }
+interface Expectation {
+  outcome: 'loaded' | PreviewErrorCategory;
+  expectWarnings?: boolean;
+  /** Specific warning codes that MUST appear in the loaded summary. */
+  requiredWarningCodes?: string[];
+}
 
 const FIXTURE_EXPECTATIONS: Record<string, Expectation> = {
   'valid-2d.json':                    { outcome: 'loaded' },
@@ -41,6 +46,14 @@ const FIXTURE_EXPECTATIONS: Record<string, Expectation> = {
   'normalized-ai-shaped-output.json': { outcome: 'loaded', expectWarnings: true },
   'missing-asset-references.json':    { outcome: 'asset-missing-reference' },
   'wrong-asset-type-references.json': { outcome: 'asset-missing-reference' },
+  // AI drift coverage — each must reach preview:loaded with the matching warning code.
+  'drift-02-fontsize-number.json':    { outcome: 'loaded', requiredWarningCodes: ['normalized.styleFontSize'] },
+  'drift-03-missing-collider.json':   { outcome: 'loaded', requiredWarningCodes: ['normalized.colliderInferred'] },
+  'drift-04-sensor-type.json':        { outcome: 'loaded', requiredWarningCodes: ['normalized.rigidBodyTypeSensor'] },
+  'drift-05-vec3-arrays.json':        { outcome: 'loaded', requiredWarningCodes: ['normalized.vec3FromArray'] },
+  'drift-06-unknown-systems.json':    { outcome: 'loaded', requiredWarningCodes: ['normalized.sceneSystemUnknown'] },
+  'drift-07-cameratarget-bool.json':  { outcome: 'loaded', requiredWarningCodes: ['normalized.cameraTargetBoolean'] },
+  'drift-08-sprite-missing-kind.json':{ outcome: 'loaded', requiredWarningCodes: ['normalized.spriteImageKind'] },
 };
 
 const ANSI = {
@@ -127,6 +140,13 @@ async function driveFixture({ name, definition, expected, engineFactory, runtime
         if (loaded.warnings.length === 0) fail('expected normalization warnings, got none');
         else pass(`got ${loaded.warnings.length} normalization warning(s)`);
       } else info(`warnings: ${loaded.warnings.length}`);
+      if (expected.requiredWarningCodes?.length) {
+        const codes = new Set(loaded.warnings.map((w) => w.code));
+        for (const required of expected.requiredWarningCodes) {
+          if (codes.has(required)) pass(`required warning code "${required}" present`);
+          else fail(`missing required warning code "${required}" (got: ${[...codes].join(', ') || 'none'})`);
+        }
+      }
       if (controller.getMode() !== 'running') fail(`mode=${controller.getMode()}, expected running`);
       else pass('mode=running');
     } else {

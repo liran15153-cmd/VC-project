@@ -10,9 +10,14 @@ process.env.AI_FALLBACK_ENABLED = 'true';
 process.env.OPENROUTER_API_KEY = 'replace-with-your-openrouter-api-key';
 
 const { createApp } = require('../src/app');
-const { validateEngineGameDefinitionSafe } = require('../src/schemas/engineGameDefinitionSchema');
+const {
+  validateEngineGameDefinitionSafe,
+  normalizeGameDefinitionCandidateWithWarnings,
+  parseEngineGameDefinitionWithWarnings
+} = require('../src/schemas/engineGameDefinitionSchema');
 const { generateGameSchema } = require('../src/schemas/apiSchemas');
 const { resolveAssetsForBrief } = require('../src/services/assetResolutionService');
+const { runDebugDiagnostics, buildDiagnosticsSummary } = require('../src/debugProtocol/diagnostics');
 
 const fixtureDir = path.resolve(__dirname, '../../..', 'test-fixtures/game-definitions');
 
@@ -262,6 +267,486 @@ test('backend GameDefinition validator follows shared parity fixtures', () => {
   assert.ok(codes.includes('normalized.engineEnable3D'));
   assert.ok(codes.includes('normalized.engineEnable2D'));
   assert.ok(codes.includes('normalized.engineEnablePhysics'));
+});
+
+test('engine normalizer drift coverage — pattern 2: fontSize number → "Npx"', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    scenes: [{ key: 'main', entities: [], ui: [{ type: 'text', text: 'hi', x: 0, y: 0, style: { fontSize: 24 } }] }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true);
+  assert.equal(result.data.scenes[0].ui[0].style.fontSize, '24px');
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.styleFontSize'));
+});
+
+test('engine normalizer drift coverage - unsupported UI types normalize only when unambiguous', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    scenes: [{
+      key: 'main',
+      entities: [],
+      ui: [
+        { type: 'button', label: 'Start', x: 16, y: 16 },
+        { type: 'meter', value: 'health', max: 100, x: 16, y: 48 },
+        { type: 'image', assetKey: 'invented_ui_icon', x: 16, y: 80 }
+      ]
+    }],
+    initialScene: 'main'
+  };
+
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.data.scenes[0].ui.map((item) => item.type), ['text', 'bar']);
+  assert.equal(result.data.scenes[0].ui[0].text, 'Start');
+  assert.equal(result.data.scenes[0].ui[1].value, 'health');
+  const codes = result.warnings.map((w) => w.code);
+  assert.ok(codes.includes('normalized.uiUnsupportedTypeToText'));
+  assert.ok(codes.includes('normalized.uiUnsupportedTypeToBar'));
+  assert.ok(codes.includes('normalized.uiUnsupportedTypeDropped'));
+});
+
+test('engine normalizer drift coverage - invalid audio triggers are dropped, valid rules stay strict', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    assets: [{ key: 'jump_sfx', type: 'audio', url: '/assets/library/jump.wav' }],
+    scenes: [{
+      key: 'main',
+      entities: [],
+      systems: ['audio'],
+      audio: [
+        { id: 'bad_null', trigger: null, asset: 'jump_sfx' },
+        { id: 'bad_array', trigger: ['start'], asset: 'jump_sfx' },
+        { id: 'good', trigger: 'onStart', asset: 'jump_sfx' }
+      ]
+    }],
+    initialScene: 'main'
+  };
+
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true);
+  assert.equal(result.data.scenes[0].audio.length, 1);
+  assert.equal(result.data.scenes[0].audio[0].id, 'good');
+  assert.equal(result.warnings.filter((w) => w.code === 'normalized.audioRuleInvalidDropped').length, 2);
+});
+
+test('engine normalizer drift coverage — pattern 3: missing collider inferred from sibling mesh', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    engine: { enable3D: true, enable2D: false, enablePhysics: true },
+    scenes: [{
+      key: 'main',
+      entities: [{
+        key: 'p',
+        mesh: { shape: 'box', size: { x: 2, y: 1, z: 2 } },
+        rigidBody: { type: 'dynamic' }
+      }]
+    }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true);
+  const collider = result.data.scenes[0].entities[0].rigidBody.collider;
+  assert.equal(collider.shape, 'cuboid');
+  assert.deepEqual(collider.halfExtents, { x: 1, y: 0.5, z: 1 });
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.colliderInferred'));
+});
+
+test('engine normalizer drift coverage — pattern 4: sensor type → static + colliderOptions.sensor', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    engine: { enable3D: true, enable2D: false, enablePhysics: true },
+    scenes: [{
+      key: 'main',
+      entities: [{
+        key: 'p',
+        mesh: { shape: 'sphere', radius: 0.5 },
+        rigidBody: { type: 'sensor', collider: { shape: 'ball', radius: 0.5 } }
+      }]
+    }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true);
+  const rb = result.data.scenes[0].entities[0].rigidBody;
+  assert.equal(rb.type, 'static');
+  assert.equal(rb.colliderOptions.sensor, true);
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.rigidBodyTypeSensor'));
+});
+
+test('engine normalizer drift coverage — pattern 4b: unknown type → dynamic', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    engine: { enable3D: true, enable2D: false, enablePhysics: true },
+    scenes: [{
+      key: 'main',
+      entities: [{
+        key: 'p',
+        mesh: { shape: 'box', size: { x: 1, y: 1, z: 1 } },
+        rigidBody: { type: 'floaty', collider: { shape: 'cuboid', halfExtents: { x: 0.5, y: 0.5, z: 0.5 } } }
+      }]
+    }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true);
+  assert.equal(result.data.scenes[0].entities[0].rigidBody.type, 'dynamic');
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.rigidBodyTypeUnknown'));
+});
+
+test('engine normalizer drift coverage — pattern 5: vec3 arrays → objects', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    engine: { enable3D: true, enable2D: false, enablePhysics: false },
+    scenes: [{
+      key: 'main',
+      entities: [{
+        key: 'p',
+        transform: { position: [0, 1, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+        mesh: { shape: 'box', size: [2, 2, 2] }
+      }]
+    }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true);
+  const e = result.data.scenes[0].entities[0];
+  assert.deepEqual(e.transform.position, { x: 0, y: 1, z: 0 });
+  assert.deepEqual(e.transform.rotation, { x: 0, y: 0, z: 0, w: 1 });
+  assert.deepEqual(e.transform.scale, { x: 1, y: 1, z: 1 });
+  assert.deepEqual(e.mesh.size, { x: 2, y: 2, z: 2 });
+  const vec3Warnings = result.warnings.filter((w) => w.code === 'normalized.vec3FromArray');
+  assert.equal(vec3Warnings.length, 4);
+});
+
+test('engine normalizer drift coverage — pattern 6: unknown scene systems filtered', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    scenes: [{
+      key: 'main',
+      systems: ['physicsSync', 'input', 'render', 'camera', 'unknown'],
+      entities: []
+    }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.data.scenes[0].systems, ['physicsSync', 'camera']);
+  const codes = result.warnings.map((w) => w.code);
+  assert.ok(codes.includes('normalized.sceneSystemUnknown'));
+});
+
+test('engine normalizer drift coverage — pattern 6b: empty systems after filter → defaults', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    scenes: [{ key: 'main', systems: ['input', 'render'], entities: [] }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.data.scenes[0].systems, ['physicsSync', 'camera']);
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.sceneSystemsDefaulted'));
+});
+
+test('engine normalizer drift coverage — pattern 7: cameraTarget boolean shorthand', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    engine: { enable3D: true, enable2D: false, enablePhysics: true },
+    scenes: [{
+      key: 'main',
+      entities: [{
+        key: 'p',
+        mesh: { shape: 'box', size: { x: 1, y: 1, z: 1 } },
+        rigidBody: { type: 'dynamic', collider: { shape: 'cuboid', halfExtents: { x: 0.5, y: 0.5, z: 0.5 } } },
+        cameraTarget: true
+      }]
+    }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true);
+  const ct = result.data.scenes[0].entities[0].cameraTarget;
+  assert.equal(typeof ct, 'object');
+  assert.equal(ct.lerp, 5);
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.cameraTargetBoolean'));
+});
+
+test('engine normalizer drift coverage — pattern 8: sprite.kind inferred from assetKey', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    assets: [{ key: 'hud', type: 'image', url: '/assets/library/x.png' }],
+    scenes: [{
+      key: 'main',
+      entities: [{ key: 'h', sprite: { assetKey: 'hud', x: 0, y: 0 } }]
+    }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true);
+  assert.equal(result.data.scenes[0].entities[0].sprite.kind, 'image');
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.spriteImageKind'));
+});
+
+test('engine normalizer drift coverage — combined multi-drift definition validates', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 'Combined Drift' },
+    engine: { enable3D: true, enable2D: true, enablePhysics: true },
+    assets: [{ key: 'hud', type: 'image', url: '/assets/library/h.png' }],
+    scenes: [{
+      key: 'main',
+      systems: ['physicsSync', 'input', 'camera', 'render', 'behavior', 'ui'],
+      entities: [
+        {
+          key: 'player',
+          transform: { position: [0, 1, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+          mesh: { shape: 'box', size: [1, 2, 1] },
+          rigidBody: { type: 'dynamic' },
+          cameraTarget: true
+        },
+        {
+          key: 'hudIcon',
+          sprite: { assetKey: 'hud', x: 16, y: 16 }
+        }
+      ],
+      ui: [{ text: 'Score: {score}', x: 24, y: 24, style: { fontSize: 22 } }]
+    }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  const codes = new Set(result.warnings.map((w) => w.code));
+  assert.ok(codes.has('normalized.vec3FromArray'));
+  assert.ok(codes.has('normalized.colliderInferred'));
+  assert.ok(codes.has('normalized.sceneSystemUnknown'));
+  assert.ok(codes.has('normalized.cameraTargetBoolean'));
+  assert.ok(codes.has('normalized.spriteImageKind'));
+  assert.ok(codes.has('normalized.styleFontSize'));
+  assert.ok(codes.has('normalized.uiTextType'));
+});
+
+test('engine normalizer drift coverage — pattern 9: assets returned as object → array', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 'Assets-as-object drift' },
+    engine: { enable3D: true, enable2D: false, enablePhysics: false },
+    assets: {
+      hud_icon: { type: 'image', url: '/assets/library/h.png' },
+      world_model: { key: 'world_model', type: 'gltf', url: '/assets/library/w.glb' }
+    },
+    scenes: [{ key: 'main', entities: [{ key: 'h', sprite: { kind: 'image', assetKey: 'hud_icon' } }] }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(Array.isArray(result.data.assets), true);
+  assert.equal(result.data.assets.length, 2);
+  assert.ok(result.data.assets.some((a) => a.key === 'hud_icon'));
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.assetsObjectToArray'));
+});
+
+test('engine normalizer drift coverage — pattern 9b: prefabs returned as array → record', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 'Prefabs-as-array drift' },
+    engine: { enable3D: true, enable2D: false, enablePhysics: true },
+    prefabs: [
+      { key: 'coin', mesh: { shape: 'box', size: { x: 0.3, y: 0.3, z: 0.3 } }, tags: ['coin'] },
+      { key: 'enemy', mesh: { shape: 'sphere', radius: 0.5 }, tags: ['enemy'] }
+    ],
+    scenes: [{ key: 'main', entities: [] }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(Array.isArray(result.data.prefabs), false);
+  assert.ok(result.data.prefabs.coin);
+  assert.ok(result.data.prefabs.enemy);
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.prefabsArrayToRecord'));
+});
+
+test('engine normalizer drift coverage — pattern 9c: scenes returned as object → array', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 'Scenes-as-object drift' },
+    engine: { enable3D: true, enable2D: false, enablePhysics: false },
+    scenes: { main: { entities: [] }, end: { key: 'end', entities: [] } },
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(Array.isArray(result.data.scenes), true);
+  assert.equal(result.data.scenes.length, 2);
+  assert.ok(result.data.scenes.some((s) => s.key === 'main'));
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.scenesObjectToArray'));
+});
+
+test('engine normalizer drift coverage — pattern 10: placeholder data: URLs dropped with references', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 'Placeholder asset drift' },
+    engine: { enable3D: true, enable2D: true, enablePhysics: true },
+    assets: [
+      { key: 'good_audio', type: 'audio', url: '/assets/library/snd.mp3' },
+      { key: 'bad_font', type: 'image', url: 'data:,uifont' },
+      { key: 'bad_sfx', type: 'audio', url: 'data:,beep' }
+    ],
+    inputBindings: { jump: ['Space'] },
+    audio: [
+      { trigger: 'sceneStart', asset: 'good_audio' },
+      { trigger: 'sceneStart', asset: 'bad_sfx' }
+    ],
+    scenes: [{
+      key: 'main',
+      entities: [{
+        key: 'hud',
+        sprite: { kind: 'image', assetKey: 'bad_font', x: 16, y: 16 }
+      }],
+      behaviors: [{
+        trigger: 'sceneStart',
+        actions: [{ type: 'playSound', asset: 'bad_sfx' }, { type: 'playSound', asset: 'good_audio' }]
+      }]
+    }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(result.data.assets.length, 1);
+  assert.equal(result.data.assets[0].key, 'good_audio');
+  // Bad sprite was replaced with empty text fallback.
+  assert.equal(result.data.scenes[0].entities[0].sprite.kind, 'text');
+  // Bad audio rule was dropped.
+  assert.equal(result.data.audio.length, 1);
+  // Bad playSound action was dropped, good one kept.
+  assert.equal(result.data.scenes[0].behaviors[0].actions.length, 1);
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.assetPlaceholderDropped'));
+});
+
+test('engine normalizer drift coverage — pattern 11: empty inputBindings defaulted when player exists', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 'Empty bindings drift' },
+    engine: { enable3D: true, enable2D: false, enablePhysics: true },
+    inputBindings: {},
+    scenes: [{
+      key: 'main',
+      entities: [{
+        key: 'player',
+        tags: ['player'],
+        mesh: { shape: 'box', size: { x: 1, y: 1, z: 1 } },
+        rigidBody: { type: 'dynamic', collider: { shape: 'cuboid', halfExtents: { x: 0.5, y: 0.5, z: 0.5 } } }
+      }]
+    }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.ok(result.data.inputBindings.moveLeft);
+  assert.ok(result.data.inputBindings.moveRight);
+  assert.ok(result.data.inputBindings.jump);
+  assert.ok(result.warnings.some((w) => w.code === 'normalized.inputBindingsDefaulted'));
+});
+
+test('engine normalizer drift coverage — pattern 12: unsupported actions normalized or dropped', () => {
+  const candidate = {
+    schemaVersion: 1,
+    metadata: { title: 'Action drift' },
+    engine: { enable3D: true, enable2D: false, enablePhysics: true },
+    inputBindings: { jump: ['Space'] },
+    prefabs: { coin: { mesh: { shape: 'box', size: { x: 0.3, y: 0.3, z: 0.3 } }, tags: ['coin'] } },
+    scenes: [{
+      key: 'main',
+      entities: [{
+        key: 'player',
+        mesh: { shape: 'box', size: { x: 1, y: 1, z: 1 } },
+        rigidBody: { type: 'dynamic', collider: { shape: 'cuboid', halfExtents: { x: 0.5, y: 0.5, z: 0.5 } } }
+      }],
+      behaviors: [{
+        trigger: 'sceneStart',
+        actions: [
+          { type: 'spawnAt', prefab: 'coin', position: { x: 2, y: 1, z: 0 } },
+          { type: 'modifyState', stateKey: 'score', amount: 10 },
+          { type: 'updateText', target: 'hud', value: 'hi' },
+          { type: 'forEachEntity', tag: 'coin' },
+          { type: 'setState', stateKey: 'lives', value: 3 }
+        ]
+      }]
+    }],
+    initialScene: 'main'
+  };
+  const result = validateEngineGameDefinitionSafe(candidate);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  const actions = result.data.scenes[0].behaviors[0].actions;
+  // spawnAt → spawnPrefab, modifyState → incrementState, setState kept; updateText + forEachEntity dropped.
+  assert.equal(actions.length, 3);
+  assert.equal(actions[0].type, 'spawnPrefab');
+  assert.equal(actions[1].type, 'incrementState');
+  assert.equal(actions[2].type, 'setState');
+  const codes = new Set(result.warnings.map((w) => w.code));
+  assert.ok(codes.has('normalized.actionRenamed'));
+  assert.ok(codes.has('normalized.actionUnsupportedDropped'));
+});
+
+test('engine normalizer drift coverage — idempotent (second pass emits zero new warnings)', () => {
+  const drift = {
+    schemaVersion: 1,
+    metadata: { title: 't' },
+    engine: { enable3D: true, enable2D: false, enablePhysics: true },
+    scenes: [{
+      key: 'main',
+      systems: ['physicsSync', 'input', 'camera'],
+      entities: [{
+        key: 'p',
+        transform: { position: [0, 1, 0] },
+        mesh: { shape: 'box', size: [1, 1, 1] },
+        rigidBody: { type: 'sensor' },
+        cameraTarget: true
+      }]
+    }],
+    initialScene: 'main'
+  };
+  const first = parseEngineGameDefinitionWithWarnings(drift);
+  assert.ok(first.warnings.length > 0);
+  const second = parseEngineGameDefinitionWithWarnings(first.definition);
+  assert.equal(second.warnings.length, 0, `idempotency broken: ${JSON.stringify(second.warnings.map((w) => w.code))}`);
+});
+
+test('engine normalizer drift coverage — existing fixtures still pass with no new warning codes', () => {
+  const PRE_EXISTING_NORMALIZED_CODES = new Set([
+    'normalized.initialScene',
+    'normalized.rotationQuaternionW',
+    'normalized.colliderBoxToCuboid',
+    'normalized.colliderSphereToBall',
+    'normalized.spriteTextKind',
+    'normalized.uiTextType',
+    'normalized.color',
+    'normalized.engineEnable3D',
+    'normalized.engineEnable2D',
+    'normalized.engineEnablePhysics'
+  ]);
+  for (const name of ['valid-2d.json', 'valid-3d.json', 'valid-hybrid.json']) {
+    const r = validateEngineGameDefinitionSafe(fixture(name));
+    assert.equal(r.ok, true, `${name} should still pass`);
+    assert.equal(r.warnings.length, 0, `${name} should not emit any new warning (got ${r.warnings.map((w) => w.code).join(',')})`);
+  }
+  const r = validateEngineGameDefinitionSafe(fixture('normalized-ai-shaped-output.json'));
+  assert.equal(r.ok, true);
+  for (const w of r.warnings) {
+    assert.ok(PRE_EXISTING_NORMALIZED_CODES.has(w.code) || w.code.startsWith('normalized.'),
+      `unexpected new warning code ${w.code} on normalized-ai-shaped-output.json`);
+  }
 });
 
 test('backend asset url validation matches GAME_ENGINE AssetManager (same-origin, data:, supabase storage)', () => {
@@ -1445,4 +1930,87 @@ test('game brief endpoint returns planning JSON without generating code', async 
   assert.equal(generated.data.meta.fallback, true);
   assert.equal(generated.data.brief.runtimePlan.runtime, 'hybrid');
   assert.match(generated.data.brief.nonGoals.join(' '), /full game code generation/i);
+});
+
+// ── Debug Diagnostics — contract tests (unit-level) ─────────────────────────
+
+test('debugDiagnostics: buildDiagnosticsSummary produces correct shape', () => {
+  const diagnostics = [
+    { code: 'UNUSED_ASSET', severity: 'warning', message: 'w1' },
+    { code: 'UNUSED_ASSET', severity: 'warning', message: 'w2' },
+    { code: 'DUPLICATE_ASSET_KEY', severity: 'error', message: 'e1' }
+  ];
+  const summary = buildDiagnosticsSummary(diagnostics);
+  assert.equal(summary.errorCount, 1);
+  assert.equal(summary.warningCount, 2);
+  assert.deepEqual(summary.codes, { UNUSED_ASSET: 2, DUPLICATE_ASSET_KEY: 1 });
+});
+
+test('debugDiagnostics: buildDiagnosticsSummary on empty array', () => {
+  const summary = buildDiagnosticsSummary([]);
+  assert.equal(summary.errorCount, 0);
+  assert.equal(summary.warningCount, 0);
+  assert.deepEqual(summary.codes, {});
+});
+
+test('debugDiagnostics: runDebugDiagnostics on a valid sampleEngineGameDefinition produces array diagnostics', () => {
+  const check = validateEngineGameDefinitionSafe(sampleEngineGameDefinition());
+  assert.equal(check.ok, true);
+  const report = runDebugDiagnostics(check.data, {
+    schemaResult: { ok: true },
+    normalizationWarnings: check.warnings || []
+  });
+  assert.equal(report.ran, true);
+  assert.equal(report.schemaOk, true);
+  assert.ok(Array.isArray(report.diagnostics));
+  assert.equal(report.counts.total, report.diagnostics.length);
+  assert.equal(report.counts.error + report.counts.warning, report.counts.total);
+  // All diagnostics must carry the required fields.
+  for (const d of report.diagnostics) {
+    assert.ok(typeof d.code === 'string' && d.code.length > 0, `missing code: ${JSON.stringify(d)}`);
+    assert.ok(d.severity === 'error' || d.severity === 'warning', `bad severity: ${d.severity}`);
+    assert.ok(typeof d.message === 'string', `missing message: ${JSON.stringify(d)}`);
+  }
+});
+
+test('debugDiagnostics: diagnostics summary round-trip via buildDiagnosticsSummary', () => {
+  const check = validateEngineGameDefinitionSafe(sampleEngineGameDefinition());
+  const report = runDebugDiagnostics(check.data, { schemaResult: { ok: true } });
+  const summary = buildDiagnosticsSummary(report.diagnostics);
+  assert.equal(summary.errorCount, report.counts.error);
+  assert.equal(summary.warningCount, report.counts.warning);
+  const totalFromSummary = Object.values(summary.codes).reduce((sum, n) => sum + n, 0);
+  assert.equal(totalFromSummary, report.counts.total);
+});
+
+test('debugDiagnostics: api contract — /api/engine/from-brief returns an error with missing/invalid key (does not break diagnostics plumbing)', async () => {
+  // With a fake API key the route returns a 4xx/5xx (429 rate-limit or 503
+  // unavailable depending on how OpenRouter treats the key). Either confirms
+  // the route loaded cleanly and diagnostics imports did not break startup.
+  const { res } = await request('POST', '/api/engine/from-brief', {
+    body: {
+      prompt: 'A simple 2D runner',
+      answers: {},
+      gameType: 'runner',
+      dimension: '2D',
+      brief: sampleGameBrief()
+    }
+  });
+  assert.ok(res.status >= 400 && res.status < 600, `expected a 4xx/5xx error with fake API key, got ${res.status}`);
+});
+
+test('debugDiagnostics: valid 3D fixture produces zero error-severity diagnostics', () => {
+  const f = fixture('valid-3d.json');
+  const check = validateEngineGameDefinitionSafe(f);
+  assert.equal(check.ok, true);
+  const report = runDebugDiagnostics(check.data, { schemaResult: { ok: true } });
+  assert.equal(report.counts.error, 0, `unexpected errors: ${JSON.stringify(report.diagnostics)}`);
+});
+
+test('debugDiagnostics: valid hybrid fixture produces zero error-severity diagnostics', () => {
+  const f = fixture('valid-hybrid.json');
+  const check = validateEngineGameDefinitionSafe(f);
+  assert.equal(check.ok, true);
+  const report = runDebugDiagnostics(check.data, { schemaResult: { ok: true } });
+  assert.equal(report.counts.error, 0);
 });

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Drift 05 vec3 arrays",
+    "description": "transform.position/rotation/scale + mesh.size delivered as arrays must coerce to objects."
+  },
+  "engine": { "enable3D": true, "enable2D": false, "enablePhysics": true },
+  "scenes": [
+    {
+      "key": "main",
+      "entities": [
+        {
+          "key": "player",
+          "transform": { "position": [0, 1, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] },
+          "mesh": { "shape": "box", "size": [1, 2, 1] },
+          "rigidBody": {
+            "type": "dynamic",
+            "collider": { "shape": "cuboid", "halfExtents": [0.5, 1, 0.5] }
+          }
+        }
+      ]
+    }
+  ],
+  "initialScene": "main"
+}

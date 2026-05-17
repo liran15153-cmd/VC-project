@@ -118,12 +118,69 @@ export const ModelDefinitionSchema = z.object({
   receiveShadow: z.boolean().default(false),
 });
 
+const PhysicsMaterialNameSchema = z.enum(['default', 'ice', 'metal', 'rubber', 'wood', 'flesh']);
+
 const ColliderOptionsSchema = z.object({
   density: z.number().positive().optional(),
   friction: z.number().min(0).optional(),
   restitution: z.number().min(0).optional(),
   sensor: z.boolean().optional(),
+  material: PhysicsMaterialNameSchema.optional(),
+}).strict();
+
+const MovingPlatformDefinitionSchema = z.union([
+  z.object({
+    kind: z.literal('path'),
+    waypoints: z.array(Vec3Schema).min(2),
+    speed: z.number().positive().default(1),
+    mode: z.enum(['loop', 'pingpong', 'once']).default('loop'),
+  }),
+  z.object({
+    kind: z.literal('velocity'),
+    velocity: Vec3Schema,
+  }),
+]);
+
+const CharacterControllerPresetSchema = z.enum(['platformer2d', 'runner2d', 'simple3d', 'topdown']);
+
+const CharacterControllerDefinitionSchema = z.object({
+  preset: CharacterControllerPresetSchema,
 });
+
+const TriggerActionListSchema = z.array(
+  z
+    .object({
+      type: z.string().optional(),
+      action: z.string().optional(),
+      target: z.unknown().optional(),
+      key: z.string().optional(),
+      stateKey: z.string().optional(),
+      value: z.unknown().optional(),
+      amount: z.number().finite().optional(),
+      asset: z.string().optional(),
+      sound: z.string().optional(),
+      event: z.string().optional(),
+      scene: z.string().optional(),
+      prefab: z.string().optional(),
+      tags: z.array(z.string().min(1)).optional(),
+      tag: z.string().optional(),
+      volume: z.number().min(0).max(1).optional(),
+      payload: z.unknown().optional(),
+      position: Vec3Schema.optional(),
+    })
+    .passthrough(),
+);
+
+const TriggerVolumeDefinitionSchema = z
+  .object({
+    onEnter: TriggerActionListSchema.optional(),
+    onExit: TriggerActionListSchema.optional(),
+    onStay: TriggerActionListSchema.optional(),
+  })
+  .refine(
+    (definition) => Boolean(definition.onEnter?.length || definition.onExit?.length || definition.onStay?.length),
+    'A trigger must declare at least one of onEnter, onExit, or onStay.',
+  );
 
 const ColliderDefinitionSchema = z.discriminatedUnion('shape', [
   z.object({
@@ -195,6 +252,9 @@ export const EntityDefinitionSchema = z.object({
   rigidBody: RigidBodyDefinitionSchema.optional(),
   sprite: SpriteDefinitionSchema.optional(),
   cameraTarget: CameraTargetDefinitionSchema.optional(),
+  characterController: CharacterControllerDefinitionSchema.optional(),
+  movingPlatform: MovingPlatformDefinitionSchema.optional(),
+  trigger: TriggerVolumeDefinitionSchema.optional(),
   tags: z.array(z.string().min(1)).default([]),
   data: z.record(z.string(), z.unknown()).default({}),
 });
@@ -430,6 +490,10 @@ export type EntityDefinition = z.infer<typeof EntityDefinitionSchema>;
 export type MeshDefinition = z.infer<typeof MeshDefinitionSchema>;
 export type ModelDefinition = z.infer<typeof ModelDefinitionSchema>;
 export type RigidBodyDefinition = z.infer<typeof RigidBodyDefinitionSchema>;
+export type MovingPlatformDefinition = z.infer<typeof MovingPlatformDefinitionSchema>;
+export type CharacterControllerDefinition = z.infer<typeof CharacterControllerDefinitionSchema>;
+export type CharacterControllerPreset = z.infer<typeof CharacterControllerPresetSchema>;
+export type TriggerVolumeDefinitionData = z.infer<typeof TriggerVolumeDefinitionSchema>;
 export type SpriteDefinition = z.infer<typeof SpriteDefinitionSchema>;
 export type BehaviorDefinition = z.infer<typeof BehaviorDefinitionSchema>;
 export type TweenDefinition = z.infer<typeof TweenDefinitionSchema>;
@@ -533,6 +597,7 @@ function normalizeInitialScene(definition: Record<string, unknown>, warnings: Ga
 
 function normalizeScene(scene: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
   if (!isRecord(scene)) return;
+  normalizeSceneSystems(scene, warnings, path);
   normalizeEntityList(scene.entities, warnings, `${path}.entities`);
   normalizeUiList(scene.ui, warnings, `${path}.ui`);
 }
@@ -549,21 +614,46 @@ function normalizeEntityList(entities: unknown, warnings: GameDefinitionNormaliz
 
 function normalizeEntity(entity: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
   if (!isRecord(entity)) return;
+  normalizeCameraTarget(entity, warnings, path);
   normalizeTransform(entity.transform, warnings, `${path}.transform`);
+  normalizeMesh(entity.mesh, warnings, `${path}.mesh`);
   normalizeRigidBody(entity.rigidBody, entity.mesh, warnings, `${path}.rigidBody`);
   normalizeSprite(entity.sprite, warnings, `${path}.sprite`);
 }
 
+function normalizeMesh(mesh: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!isRecord(mesh)) return;
+  normalizeVec3Field(mesh, 'size', false, warnings, path);
+}
+
 function normalizeTransform(transform: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
-  if (!isRecord(transform) || !isRecord(transform.rotation) || transform.rotation.w !== undefined) return;
+  if (!isRecord(transform)) return;
+  normalizeVec3Field(transform, 'position', false, warnings, path);
+  normalizeVec3Field(transform, 'scale', false, warnings, path);
+  normalizeVec3Field(transform, 'rotation', true, warnings, path);
+  if (!isRecord(transform.rotation) || transform.rotation.w !== undefined) return;
   const before = clonePlainObject(transform.rotation);
   transform.rotation.w = 1;
   addNormalizationWarning(warnings, 'normalized.rotationQuaternionW', `${path}.rotation.w`, before, clonePlainObject(transform.rotation), 'Missing quaternion w was defaulted to 1.');
 }
 
 function normalizeRigidBody(rigidBody: unknown, mesh: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
-  if (!isRecord(rigidBody) || !isRecord(rigidBody.collider)) return;
-  const collider = rigidBody.collider;
+  if (!isRecord(rigidBody)) return;
+  normalizeRigidBodyType(rigidBody, warnings, path);
+
+  if (!isRecord(rigidBody.collider)) {
+    const inferred = inferColliderFromMesh(mesh);
+    rigidBody.collider = inferred as unknown as Record<string, unknown>;
+    addNormalizationWarning(
+      warnings,
+      'normalized.colliderInferred',
+      `${path}.collider`,
+      undefined,
+      clonePlainObject(inferred),
+      'rigidBody.collider was missing and inferred from sibling mesh.'
+    );
+  }
+  const collider = rigidBody.collider as Record<string, unknown>;
   if (collider.shape === 'box') {
     const before = clonePlainObject(collider);
     collider.shape = 'cuboid';
@@ -574,6 +664,29 @@ function normalizeRigidBody(rigidBody: unknown, mesh: unknown, warnings: GameDef
     const before = clonePlainObject(collider);
     collider.shape = 'ball';
     addNormalizationWarning(warnings, 'normalized.colliderSphereToBall', `${path}.collider.shape`, before, clonePlainObject(collider), 'Collider shape sphere was normalized to ball.');
+  }
+
+  normalizeVec3Field(collider, 'halfExtents', false, warnings, `${path}.collider`);
+  normalizeMaterialConflict(rigidBody, warnings, path);
+}
+
+function normalizeMaterialConflict(rigidBody: Record<string, unknown>, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  const options = isRecord(rigidBody.colliderOptions) ? rigidBody.colliderOptions : null;
+  if (!options) return;
+  const material = typeof options.material === 'string' ? options.material : undefined;
+  if (!material) return;
+  for (const key of ['friction', 'restitution', 'density'] as const) {
+    if (!Object.prototype.hasOwnProperty.call(options, key)) continue;
+    const before = options[key];
+    delete options[key];
+    addNormalizationWarning(
+      warnings,
+      'normalized.colliderMaterialConflict',
+      `${path}.colliderOptions.${key}`,
+      before,
+      undefined,
+      `colliderOptions.${key} was dropped because colliderOptions.material="${material}" was already specified.`
+    );
   }
 }
 
@@ -598,7 +711,12 @@ function normalizeSprite(sprite: unknown, warnings: GameDefinitionNormalizationW
     sprite.kind = 'text';
     addNormalizationWarning(warnings, 'normalized.spriteTextKind', `${path}.kind`, undefined, 'text', 'Text sprite kind was inferred.');
   }
+  if (!sprite.kind && typeof sprite.assetKey === 'string') {
+    sprite.kind = 'image';
+    addNormalizationWarning(warnings, 'normalized.spriteImageKind', `${path}.kind`, undefined, 'image', 'Image sprite kind was inferred from assetKey.');
+  }
   normalizeStyleColor(sprite.style, warnings, `${path}.style`);
+  normalizeStyleFontSize(sprite.style, warnings, `${path}.style`);
 }
 
 function normalizeUiList(ui: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
@@ -610,6 +728,7 @@ function normalizeUiList(ui: unknown, warnings: GameDefinitionNormalizationWarni
       addNormalizationWarning(warnings, 'normalized.uiTextType', `${path}.${index}.type`, undefined, 'text', 'Text UI type was inferred.');
     }
     normalizeStyleColor(item.style, warnings, `${path}.${index}.style`);
+    normalizeStyleFontSize(item.style, warnings, `${path}.${index}.style`);
   });
 }
 
@@ -650,6 +769,187 @@ function normalizeColorValue(value: unknown): unknown {
   }
   if (/^0x[0-9a-fA-F]{6}$/.test(trimmed)) return Number.parseInt(trimmed.slice(2), 16);
   return trimmed;
+}
+
+// ─── AI-drift normalizers (lenient + log) ─────────────────────────────────
+
+const VALID_RIGID_BODY_TYPES = new Set(['dynamic', 'static', 'kinematic']);
+const VALID_SCENE_SYSTEMS = new Set(['physicsSync', 'camera', 'behavior', 'tween', 'spawner', 'ui', 'audio']);
+
+function normalizeVec3Field(record: Record<string, unknown>, key: string, expectW: boolean, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  const value = record[key];
+  if (!Array.isArray(value)) return;
+  if (value.length < 3) return;
+  const [x, y, z, w] = value as unknown[];
+  if (![x, y, z].every((n) => typeof n === 'number' && Number.isFinite(n))) return;
+  const before = clonePlainObject(value);
+  const next: Record<string, number> = expectW
+    ? { x: x as number, y: y as number, z: z as number, w: typeof w === 'number' && Number.isFinite(w) ? w : 1 }
+    : { x: x as number, y: y as number, z: z as number };
+  record[key] = next;
+  addNormalizationWarning(
+    warnings,
+    'normalized.vec3FromArray',
+    `${path}.${key}`,
+    before,
+    clonePlainObject(next),
+    expectW ? 'Quaternion array was normalized to {x,y,z,w} object.' : 'Vec3 array was normalized to {x,y,z} object.'
+  );
+}
+
+function normalizeRigidBodyType(rigidBody: Record<string, unknown>, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  const before = rigidBody.type;
+  if (typeof before !== 'string') return;
+  if (VALID_RIGID_BODY_TYPES.has(before)) return;
+  if (/^(sensor|trigger|ghost|area)$/i.test(before)) {
+    rigidBody.type = 'static';
+    const options = isRecord(rigidBody.colliderOptions) ? rigidBody.colliderOptions : {};
+    rigidBody.colliderOptions = { ...options, sensor: true };
+    addNormalizationWarning(
+      warnings,
+      'normalized.rigidBodyTypeSensor',
+      `${path}.type`,
+      before,
+      'static (colliderOptions.sensor=true)',
+      'Sensor/trigger rigidBody type was normalized to static + colliderOptions.sensor=true.'
+    );
+    return;
+  }
+  rigidBody.type = 'dynamic';
+  addNormalizationWarning(
+    warnings,
+    'normalized.rigidBodyTypeUnknown',
+    `${path}.type`,
+    before,
+    'dynamic',
+    `Unknown rigidBody type "${before}" was normalized to dynamic.`
+  );
+}
+
+interface InferredCollider {
+  shape: 'cuboid' | 'ball' | 'capsule';
+  halfExtents?: { x: number; y: number; z: number };
+  radius?: number;
+  halfHeight?: number;
+}
+
+function inferColliderFromMesh(mesh: unknown): InferredCollider {
+  if (!isRecord(mesh)) return { shape: 'cuboid', halfExtents: { x: 0.5, y: 0.5, z: 0.5 } };
+  switch (mesh.shape) {
+    case 'box':
+      return { shape: 'cuboid', halfExtents: halfExtentsFromSize(isRecord(mesh.size) ? mesh.size : undefined) };
+    case 'sphere':
+      return { shape: 'ball', radius: finitePositive(mesh.radius) ? mesh.radius : 0.5 };
+    case 'cylinder':
+    case 'cone': {
+      const height = finitePositive(mesh.height) ? mesh.height : 1;
+      const radius = finitePositive(mesh.radiusTop)
+        ? mesh.radiusTop
+        : finitePositive(mesh.radius) ? mesh.radius : 0.25;
+      return { shape: 'capsule', halfHeight: height / 2, radius };
+    }
+    case 'plane': {
+      const size = isRecord(mesh.size) ? mesh.size : null;
+      const sx = size && finitePositive(size.x) ? size.x : 1;
+      const sy = size && finitePositive(size.y) ? size.y : 1;
+      return { shape: 'cuboid', halfExtents: { x: sx / 2, y: 0.05, z: sy / 2 } };
+    }
+    default:
+      return { shape: 'cuboid', halfExtents: { x: 0.5, y: 0.5, z: 0.5 } };
+  }
+}
+
+function normalizeSceneSystems(scene: Record<string, unknown>, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!Array.isArray(scene.systems)) return;
+  const before = [...(scene.systems as unknown[])];
+  const seen = new Set<string>();
+  const filtered: string[] = [];
+  const dropped = new Set<string>();
+  for (const entry of before) {
+    if (typeof entry !== 'string') { dropped.add(String(entry)); continue; }
+    if (!VALID_SCENE_SYSTEMS.has(entry)) { dropped.add(entry); continue; }
+    if (seen.has(entry)) continue;
+    seen.add(entry);
+    filtered.push(entry);
+  }
+  if (dropped.size === 0 && filtered.length === before.length) return;
+  scene.systems = filtered;
+  for (const name of dropped) {
+    addNormalizationWarning(
+      warnings,
+      'normalized.sceneSystemUnknown',
+      `${path}.systems`,
+      name,
+      null,
+      `Unknown scene system "${name}" was removed.`
+    );
+  }
+  if (filtered.length === 0) {
+    scene.systems = ['physicsSync', 'camera'];
+    addNormalizationWarning(
+      warnings,
+      'normalized.sceneSystemsDefaulted',
+      `${path}.systems`,
+      before,
+      ['physicsSync', 'camera'],
+      'scenes[].systems was empty after filtering; defaulted to ["physicsSync","camera"].'
+    );
+  }
+}
+
+function normalizeCameraTarget(entity: Record<string, unknown>, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (typeof entity.cameraTarget !== 'boolean') return;
+  const before = entity.cameraTarget;
+  if (before) {
+    entity.cameraTarget = {};
+    addNormalizationWarning(
+      warnings,
+      'normalized.cameraTargetBoolean',
+      `${path}.cameraTarget`,
+      true,
+      {},
+      'cameraTarget=true was normalized to {} (Zod defaults fill lerp/offset).'
+    );
+  } else {
+    delete entity.cameraTarget;
+    addNormalizationWarning(
+      warnings,
+      'normalized.cameraTargetBoolean',
+      `${path}.cameraTarget`,
+      false,
+      undefined,
+      'cameraTarget=false was removed (no follow camera).'
+    );
+  }
+}
+
+function normalizeStyleFontSize(style: unknown, warnings: GameDefinitionNormalizationWarning[], path: string): void {
+  if (!isRecord(style)) return;
+  if (!Object.prototype.hasOwnProperty.call(style, 'fontSize')) return;
+  const before = style.fontSize;
+  if (typeof before === 'number' && Number.isFinite(before)) {
+    style.fontSize = `${before}px`;
+    addNormalizationWarning(
+      warnings,
+      'normalized.styleFontSize',
+      `${path}.fontSize`,
+      before,
+      style.fontSize,
+      'Numeric fontSize was normalized to "<n>px".'
+    );
+    return;
+  }
+  if (typeof before === 'string' && /^\s*[0-9]+(\.[0-9]+)?\s*$/.test(before)) {
+    style.fontSize = `${before.trim()}px`;
+    addNormalizationWarning(
+      warnings,
+      'normalized.styleFontSize',
+      `${path}.fontSize`,
+      before,
+      style.fontSize,
+      'Bare numeric fontSize string was normalized to "<n>px".'
+    );
+  }
 }
 
 function normalizeEngineFlags(definition: Record<string, unknown>, warnings: GameDefinitionNormalizationWarning[]): void {

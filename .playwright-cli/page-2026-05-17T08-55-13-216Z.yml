@@ -1,0 +1,85 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: GVC
+      - generic [ref=e7]:
+        - generic [ref=e8]: Gaming Vibe
+        - generic [ref=e9]: AI Game Builder
+    - navigation [ref=e10]:
+      - link "⌂ Dashboard" [ref=e11] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e12]: ⌂
+        - text: Dashboard
+      - link "✨ Build a Game" [active] [ref=e13] [cursor=pointer]:
+        - /url: /build
+        - generic [ref=e14]: ✨
+        - text: Build a Game
+      - link "▦ My Games" [ref=e15] [cursor=pointer]:
+        - /url: /games
+        - generic [ref=e16]: ▦
+        - text: My Games
+    - generic [ref=e18]:
+      - generic [ref=e19]: L
+      - generic [ref=e20]:
+        - generic [ref=e21]: Local Creator
+        - generic [ref=e22]: user
+      - button "Sign out" [ref=e23] [cursor=pointer]
+  - main [ref=e24]:
+    - generic [ref=e26]:
+      - button "⛁ 999 / 999 tokens" [ref=e27] [cursor=pointer]:
+        - generic [ref=e28]: ⛁
+        - generic [ref=e29]: 999 / 999 tokens
+      - button "Backend online" [ref=e31] [cursor=pointer]:
+        - generic [ref=e33]: Backend online
+    - generic [ref=e61]:
+      - generic [ref=e62]:
+        - heading "Build a game" [level=1] [ref=e63]
+        - generic [ref=e64]: Tell us what to make. The AI will ask a few questions, then generate a playable game.
+      - generic [ref=e65]:
+        - generic [ref=e66]:
+          - heading "1. Describe your game" [level=2] [ref=e67]
+          - generic [ref=e68]: What do you want to build?
+          - textbox "A 2D platformer where a fox collects glowing fruit and avoids spiked plants…" [ref=e69]
+          - generic [ref=e70]:
+            - generic [ref=e71]:
+              - generic [ref=e72]: Dimension
+              - combobox [ref=e73]:
+                - option "2D" [selected]
+                - option "3D"
+                - option "Hybrid"
+            - generic [ref=e74]:
+              - generic [ref=e75]: Genre
+              - combobox [ref=e76]:
+                - option "platformer" [selected]
+                - option "shooter"
+                - option "runner"
+                - option "breakout"
+                - option "rpg"
+                - option "puzzle"
+            - generic [ref=e77]:
+              - generic [ref=e78]: AI model
+              - combobox [ref=e79]:
+                - option "openai/gpt-5.1" [selected]
+              - generic [ref=e80]: "Provider: OpenRouter"
+          - button "Generate questions" [disabled] [ref=e82]
+        - complementary [ref=e83]:
+          - heading "Progress" [level=2] [ref=e84]
+          - list [ref=e85]:
+            - listitem [ref=e86]:
+              - generic [ref=e87]: "1"
+              - generic [ref=e88]: Checking backend
+            - listitem [ref=e89]:
+              - generic [ref=e90]: "2"
+              - generic [ref=e91]: Generating questions
+            - listitem [ref=e92]:
+              - generic [ref=e93]: "3"
+              - generic [ref=e94]: Creating game brief
+            - listitem [ref=e95]:
+              - generic [ref=e96]: "4"
+              - generic [ref=e97]: Building GameDefinition
+            - listitem [ref=e98]:
+              - generic [ref=e99]: "5"
+              - generic [ref=e100]: Running preview
+            - listitem [ref=e101]:
+              - generic [ref=e102]: "6"
+              - generic [ref=e103]: Ready

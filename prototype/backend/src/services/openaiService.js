@@ -47,7 +47,7 @@ function extractJSON(text) {
 
   try {
     return JSON.parse(cleaned);
-  } catch {/* try fallback */}
+  } catch {/* try fallback */ }
 
   const firstBrace = cleaned.search(/[{[]/);
   if (firstBrace === -1) throw new Error('No JSON object/array found in response');
@@ -109,6 +109,11 @@ async function generateJSON({ prompt, systemPrompt, model, generationConfig = {}
   const raw = extractOutputText(result);
   const durationMs = Date.now() - start;
   if (!raw) throw new ExternalAPIError(config.ai.providerLabel, 'Empty response');
+
+  logger.info(
+    { raw, path: 'generateJSON', model: modelName, bytes: raw?.length ?? 0 },
+    'engine.raw_ai_output'
+  );
 
   let json = await parseOrRepairJSON({
     raw,
@@ -304,6 +309,12 @@ async function generateJSONWithSingleTool({
 
   const raw = extractOutputText(final);
   if (!raw) throw new ExternalAPIError(config.ai.providerLabel, 'Empty response after tool call');
+
+  logger.info(
+    { raw, path: 'generateJSONWithSingleTool', model: modelName, bytes: raw?.length ?? 0 },
+    'engine.raw_ai_output'
+  );
+
   const json = await parseOrRepairJSON({
     raw,
     ai: { chat: { completions: { create: createCompletion } } },

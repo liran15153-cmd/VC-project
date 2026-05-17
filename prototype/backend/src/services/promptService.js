@@ -58,11 +58,15 @@ function buildHybridMinimalMCQPrompt({ prompt, gameType, dimension }) {
   return parts.join('\n');
 }
 
-function buildGameBriefPrompt({ prompt, answers = {}, gameType, dimension, existingAssets = [] }) {
+function buildGameBriefPrompt({ prompt, answers = {}, gameType, dimension, existingAssets = [], archetype = null }) {
   const parts = [];
   parts.push(`RAW USER GAME IDEA: ${prompt}`);
   if (gameType) parts.push(`KNOWN GAME TYPE: ${gameType}`);
   if (dimension) parts.push(`KNOWN DIMENSION: ${dimension}`);
+
+  if (archetype && typeof archetype === 'object') {
+    appendArchetypeGuidance(parts, archetype);
+  }
 
   const answerEntries = Object.entries(answers || {});
   if (answerEntries.length) {
@@ -89,6 +93,26 @@ function buildGameBriefPrompt({ prompt, answers = {}, gameType, dimension, exist
   parts.push('Keep runtime systems, production notes, non-goals, and visual style concise enough to pass the schema on the first response.');
   parts.push('Return JSON only.');
   return parts.join('\n');
+}
+
+function appendArchetypeGuidance(parts, archetype) {
+  const cam = archetype.camera || {};
+  const phys = archetype.physics || {};
+  const controls = archetype.defaultControls || {};
+  const entities = Array.isArray(archetype.commonEntities) ? archetype.commonEntities.join(', ') : '';
+  const assetRoles = Array.isArray(archetype.commonAssetRoles) ? archetype.commonAssetRoles.join(', ') : '';
+  const failures = Array.isArray(archetype.commonFailureModes) ? archetype.commonFailureModes.join('; ') : '';
+
+  parts.push('ARCHETYPE GUIDANCE:');
+  parts.push(`- Archetype: ${archetype.id} (dimension: ${archetype.dimension}, perspective: ${archetype.perspective})`);
+  parts.push(`- Camera: ${cam.type || 'n/a'} (${cam.defaults || 'n/a'})`);
+  parts.push(`- Physics: ${phys.mode || 'n/a'} (${phys.notes || 'n/a'})`);
+  parts.push(`- Expected controls: ${controls.primary || 'n/a'} | mobile: ${controls.mobile || 'n/a'}`);
+  if (entities) parts.push(`- Core entities: ${entities}`);
+  if (assetRoles) parts.push(`- Asset roles: ${assetRoles}`);
+  if (failures) parts.push(`- Avoid: ${failures}`);
+  if (archetype.briefGuidance) parts.push(`- ${archetype.briefGuidance}`);
+  parts.push('- Asset keys are resolved later — do not invent asset keys in this brief.');
 }
 
 /**

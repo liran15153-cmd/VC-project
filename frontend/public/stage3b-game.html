@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Stage 3B Playable — Crystal Circuit</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #0b0f16; overflow: hidden; display: flex; flex-direction: column; }
+    #header { padding: 10px 16px; background: #111827; color: #e2e8f0; font-family: system-ui; font-size: 13px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e2a3a; }
+    #header strong { color: #818cf8; }
+    #header .meta { color: #94a3b8; font-size: 11px; }
+    #status { font-size: 12px; color: #94a3b8; }
+    #game-frame { flex: 1; border: none; width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <div>
+      <strong>Stage 3B Playable — Crystal Circuit</strong>
+      <div class="meta">Real /api/engine/from-brief result · 17 entities · 6 crystals · 2 enemies · move with arrows/WASD · jump with Space</div>
+    </div>
+    <span id="status">Loading game engine…</span>
+  </div>
+  <iframe id="game-frame" src="/engine-preview/preview.html" sandbox="allow-scripts allow-same-origin allow-pointer-lock"></iframe>
+  <script>
+    // GameDefinition below is the real /api/engine/from-brief output that LOOMIER
+    // produced from the prompt: "Dash and double-jump a nimble robot through linear
+    // lava-filled stages, collecting every energy crystal to unlock the exit."
+    // (saved as from_brief_result.json, schema-validated against current code.)
+    const GAME_DEF = {"schemaVersion":1,"metadata":{"title":"Crystal Circuit","description":"Mobile-friendly hybrid 2D/2.5D precision platformer: guide an agile teal robot across oceanic factory platforms, collect every crystal to open the exit, and avoid lava-like energy pits and patrolling drones.","genre":"platformer"},"engine":{"enable3D":true,"enable2D":true,"enablePhysics":true,"gravity":{"x":0,"y":-9.81,"z":0}},"state":{},"inputBindings":{"moveLeft":["ArrowLeft","KeyA"],"moveRight":["ArrowRight","KeyD"],"jump":["Space","ArrowUp","KeyW"],"action":["KeyE","Enter"]},"assets":[],"prefabs":{},"behaviors":[],"animations":[],"ui":[],"audio":[],"scenes":[{"key":"level1","systems":["physicsSync","camera","behavior","tween","ui","audio","spawner"],"lights":[],"entities":[{"key":"floor","transform":{"position":{"x":0,"y":-2.5,"z":0},"rotation":{"x":0,"y":0,"z":0,"w":1},"scale":{"x":40,"y":1,"z":1}},"mesh":{"shape":"box","size":{"x":40,"y":1,"z":1},"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"cuboid","halfExtents":{"x":20,"y":0.5,"z":0.5}},"ccd":false,"colliderOptions":{}},"tags":["ground"],"data":{}},{"key":"platform_mid","transform":{"position":{"x":12,"y":1,"z":0},"rotation":{"x":0,"y":0,"z":0,"w":1},"scale":{"x":6,"y":0.8,"z":1}},"mesh":{"shape":"box","size":{"x":6,"y":0.8,"z":1},"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"cuboid","halfExtents":{"x":3,"y":0.4,"z":0.5}},"ccd":false,"colliderOptions":{}},"tags":["ground"],"data":{}},{"key":"platform_high","transform":{"position":{"x":22,"y":4,"z":0},"rotation":{"x":0,"y":0,"z":0,"w":1},"scale":{"x":5,"y":0.8,"z":1}},"mesh":{"shape":"box","size":{"x":5,"y":0.8,"z":1},"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"cuboid","halfExtents":{"x":2.5,"y":0.4,"z":0.5}},"ccd":false,"colliderOptions":{}},"tags":["ground"],"data":{}},{"key":"lava_pit1","transform":{"position":{"x":6,"y":-2.2,"z":0},"rotation":{"x":0,"y":0,"z":0,"w":1},"scale":{"x":6,"y":0.5,"z":1}},"mesh":{"shape":"box","size":{"x":6,"y":0.5,"z":1},"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"cuboid","halfExtents":{"x":3,"y":0.25,"z":0.5}},"ccd":false,"colliderOptions":{"sensor":true}},"tags":["lava","hazard"],"data":{}},{"key":"lava_pit2","transform":{"position":{"x":18,"y":-2.2,"z":0},"rotation":{"x":0,"y":0,"z":0,"w":1},"scale":{"x":5,"y":0.5,"z":1}},"mesh":{"shape":"box","size":{"x":5,"y":0.5,"z":1},"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"cuboid","halfExtents":{"x":2.5,"y":0.25,"z":0.5}},"ccd":false,"colliderOptions":{"sensor":true}},"tags":["lava","hazard"],"data":{}},{"key":"player","transform":{"position":{"x":-16,"y":-1.5,"z":0},"rotation":{"x":0,"y":0,"z":0,"w":1},"scale":{"x":0.9,"y":1.2,"z":1}},"mesh":{"shape":"box","size":{"x":0.9,"y":1.2,"z":1},"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"dynamic","collider":{"shape":"capsule","halfHeight":0.5,"radius":0.3},"ccd":false,"colliderOptions":{}},"cameraTarget":{"lerp":0.12,"offset":{"x":0,"y":2,"z":18}},"tags":["player","robot"],"data":{}},{"key":"checkpoint1","transform":{"position":{"x":-4,"y":-1.4,"z":0},"rotation":{"x":0,"y":0,"z":0,"w":1},"scale":{"x":0.6,"y":1.6,"z":1}},"mesh":{"shape":"box","size":{"x":0.6,"y":1.6,"z":1},"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"cuboid","halfExtents":{"x":0.3,"y":0.8,"z":0.5}},"ccd":false,"colliderOptions":{"sensor":true}},"tags":["checkpoint"],"data":{}},{"key":"exitDoor","transform":{"position":{"x":26.5,"y":-1.4,"z":0},"rotation":{"x":0,"y":0,"z":0,"w":1},"scale":{"x":1.2,"y":2.5,"z":1}},"mesh":{"shape":"box","size":{"x":1.2,"y":2.5,"z":1},"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"cuboid","halfExtents":{"x":0.6,"y":1.25,"z":0.5}},"ccd":false,"colliderOptions":{"sensor":true}},"tags":["exit"],"data":{}},{"key":"crystal1","transform":{"position":{"x":-10,"y":0,"z":0},"rotation":{"x":0,"y":0,"z":0.2,"w":0.98},"scale":{"x":0.4,"y":0.7,"z":1}},"mesh":{"shape":"cone","radius":0.5,"height":1,"radialSegments":32,"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"ball","radius":0.35},"ccd":false,"colliderOptions":{"sensor":true}},"tags":["crystal","collectible"],"data":{}},{"key":"crystal2","transform":{"position":{"x":-2,"y":0.2,"z":0},"rotation":{"x":0,"y":0,"z":0.2,"w":0.98},"scale":{"x":0.4,"y":0.7,"z":1}},"mesh":{"shape":"cone","radius":0.5,"height":1,"radialSegments":32,"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"ball","radius":0.35},"ccd":false,"colliderOptions":{"sensor":true}},"tags":["crystal","collectible"],"data":{}},{"key":"crystal3","transform":{"position":{"x":12,"y":2.3,"z":0},"rotation":{"x":0,"y":0,"z":0.2,"w":0.98},"scale":{"x":0.4,"y":0.7,"z":1}},"mesh":{"shape":"cone","radius":0.5,"height":1,"radialSegments":32,"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"ball","radius":0.35},"ccd":false,"colliderOptions":{"sensor":true}},"tags":["crystal","collectible"],"data":{}},{"key":"crystal4","transform":{"position":{"x":15,"y":2.3,"z":0},"rotation":{"x":0,"y":0,"z":0.2,"w":0.98},"scale":{"x":0.4,"y":0.7,"z":1}},"mesh":{"shape":"cone","radius":0.5,"height":1,"radialSegments":32,"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"ball","radius":0.35},"ccd":false,"colliderOptions":{"sensor":true}},"tags":["crystal","collectible"],"data":{}},{"key":"crystal5","transform":{"position":{"x":22,"y":5.3,"z":0},"rotation":{"x":0,"y":0,"z":0.2,"w":0.98},"scale":{"x":0.4,"y":0.7,"z":1}},"mesh":{"shape":"cone","radius":0.5,"height":1,"radialSegments":32,"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"ball","radius":0.35},"ccd":false,"colliderOptions":{"sensor":true}},"tags":["crystal","collectible"],"data":{}},{"key":"crystal6","transform":{"position":{"x":25,"y":0.2,"z":0},"rotation":{"x":0,"y":0,"z":0.2,"w":0.98},"scale":{"x":0.4,"y":0.7,"z":1}},"mesh":{"shape":"cone","radius":0.5,"height":1,"radialSegments":32,"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"static","collider":{"shape":"ball","radius":0.35},"ccd":false,"colliderOptions":{"sensor":true}},"tags":["crystal","collectible"],"data":{}},{"key":"enemy1","transform":{"position":{"x":8,"y":-1.2,"z":0},"rotation":{"x":0,"y":0,"z":0,"w":1},"scale":{"x":1,"y":1,"z":1}},"mesh":{"shape":"box","size":{"x":1,"y":1,"z":1},"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"kinematic","collider":{"shape":"cuboid","halfExtents":{"x":0.5,"y":0.5,"z":0.5}},"ccd":false,"colliderOptions":{}},"tags":["enemy","hazard"],"data":{}},{"key":"enemy2","transform":{"position":{"x":22,"y":2.8,"z":0},"rotation":{"x":0,"y":0,"z":0,"w":1},"scale":{"x":0.9,"y":0.9,"z":1}},"mesh":{"shape":"box","size":{"x":0.9,"y":0.9,"z":1},"color":16777215,"metalness":0,"roughness":0.6},"rigidBody":{"type":"kinematic","collider":{"shape":"cuboid","halfExtents":{"x":0.45,"y":0.45,"z":0.5}},"ccd":false,"colliderOptions":{}},"tags":["enemy","hazard"],"data":{}}],"behaviors":[{"id":"_default_moveLeft","trigger":{"type":"inputDown","input":"moveLeft"},"conditions":[],"actions":[{"type":"setVelocityX","target":"player","value":-5}]},{"id":"_default_moveRight","trigger":{"type":"inputDown","input":"moveRight"},"conditions":[],"actions":[{"type":"setVelocityX","target":"player","value":5}]},{"id":"_default_stopLeft","trigger":{"type":"inputReleased","input":"moveLeft"},"conditions":[],"actions":[{"type":"setVelocityX","target":"player","value":0}]},{"id":"_default_stopRight","trigger":{"type":"inputReleased","input":"moveRight"},"conditions":[],"actions":[{"type":"setVelocityX","target":"player","value":0}]},{"id":"_default_jump","trigger":{"type":"inputPressed","input":"jump"},"conditions":[],"actions":[{"type":"applyImpulse","target":"player","value":{"x":0,"y":7,"z":0}}]}],"animations":[],"spawners":[],"ui":[{"type":"text","text":"Crystals: 0 / 6","x":16,"y":16,"style":{"fontFamily":"sans-serif","fontSize":"20px","color":"#B8FFF4"},"depth":1000}],"audio":[]}],"initialScene":"level1"};
+    const iframe = document.getElementById("game-frame");
+    const status = document.getElementById("status");
+    let requestId = 0;
+
+    window.addEventListener("message", function(event) {
+      if (!event.data || event.data.v !== 1) return;
+      const msg = event.data;
+      if (msg.type === "preview:hello") {
+        status.textContent = "Sending game definition…";
+        iframe.contentWindow.postMessage({
+          v: 1,
+          type: "preview:load",
+          requestId: "stage3b-" + (++requestId),
+          gameDefinition: GAME_DEF
+        }, window.location.origin);
+      }
+      if (msg.type === "preview:loading") {
+        status.textContent = "Loading: " + (msg.phase || "…");
+      }
+      if (msg.type === "preview:loaded") {
+        status.textContent = "Running — " + (msg.summary?.title || GAME_DEF.metadata.title);
+        document.getElementById("header").style.background = "#0f2a1a";
+      }
+      if (msg.type === "preview:error") {
+        status.textContent = "Error: " + (msg.error?.message || "unknown");
+        document.getElementById("header").style.background = "#2a0f0f";
+      }
+    });
+  </script>
+</body>
+</html>

@@ -12,24 +12,54 @@ const { GAME_BRIEF_SYSTEM_PROMPT } = require('../services/systemPrompts');
 const { generateValidatedJSON } = require('../services/jsonAgentService');
 const { shouldUseMockForTask } = require('../services/aiModeService');
 const fallbackAI = require('../services/fallbackAIService');
+const { classifyArchetype } = require('../classifier');
 const config = require('../config/env');
 const logger = require('../utils/logger');
 
 const router = express.Router();
 
+function classifierMetaFor(classification) {
+  return {
+    archetype: classification.archetype,
+    dimension: classification.dimension,
+    confidenceScore: classification.confidenceScore,
+    source: classification.source,
+    dimensionSource: classification.dimensionSource,
+    reasoningShort: classification.reasoningShort,
+    warnings: classification.warnings || []
+  };
+}
+
 async function generateBriefOrFallback({ prompt, answers, gameType, dimension, existingAssets, model }) {
-  if (shouldUseMockForTask('brief', { prompt, answers, gameType, dimension })) {
-    const mock = gameBriefSchema.parse(fallbackAI.generateBrief({ prompt, answers, gameType, dimension, existingAssets }));
+  const classification = classifyArchetype({
+    rawPrompt: prompt,
+    mcqAnswers: answers,
+    dimension,
+    gameType
+  });
+  const resolvedDimension = classification.dimension;
+  const archetypeProfile = classification.archetypeProfile;
+
+  if (shouldUseMockForTask('brief', { prompt, answers, gameType, dimension: resolvedDimension })) {
+    const mock = gameBriefSchema.parse(fallbackAI.generateBrief({ prompt, answers, gameType, dimension: resolvedDimension, existingAssets }));
     return {
       brief: mock.brief,
       model: 'local-mock',
       durationMs: 0,
       fallback: false,
-      tokenOptimized: true
+      tokenOptimized: true,
+      classification
     };
   }
 
-  const userPrompt = buildGameBriefPrompt({ prompt, answers, gameType, dimension, existingAssets });
+  const userPrompt = buildGameBriefPrompt({
+    prompt,
+    answers,
+    gameType,
+    dimension: resolvedDimension,
+    existingAssets,
+    archetype: archetypeProfile
+  });
 
   try {
     const result = await generateValidatedJSON({
@@ -38,7 +68,16 @@ async function generateBriefOrFallback({ prompt, answers, gameType, dimension, e
       prompt: userPrompt,
       model,
       generationConfig: { temperature: 0.4, maxOutputTokens: 6500 },
-      cacheKey: { task: 'game-brief', prompt, answers, gameType, dimension, existingAssets, model },
+      cacheKey: {
+        task: 'game-brief',
+        prompt,
+        answers,
+        gameType,
+        dimension: resolvedDimension,
+        archetype: classification.archetype,
+        existingAssets,
+        model
+      },
       repairLabel: 'Game Brief'
     });
 
@@ -49,19 +88,21 @@ async function generateBriefOrFallback({ prompt, answers, gameType, dimension, e
       fallback: false,
       schemaRepair: result.schemaRepair,
       cached: result.cached,
-      tokenOptimization: result.tokenOptimization
+      tokenOptimization: result.tokenOptimization,
+      classification
     };
   } catch (err) {
     if (!config.ai.fallbackEnabled || !fallbackAI.shouldUseFallback(err)) throw err;
 
-    logger.warn({ err: err.message, gameType, dimension }, 'Using deterministic Game Brief fallback');
-    const mock = gameBriefSchema.parse(fallbackAI.generateBrief({ prompt, answers, gameType, dimension, existingAssets }));
+    logger.warn({ err: err.message, gameType, dimension: resolvedDimension, archetype: classification.archetype }, 'Using deterministic Game Brief fallback');
+    const mock = gameBriefSchema.parse(fallbackAI.generateBrief({ prompt, answers, gameType, dimension: resolvedDimension, existingAssets }));
     return {
       brief: mock.brief,
       model: 'local-mock',
       durationMs: 0,
       fallback: true,
-      fallbackReason: err.message
+      fallbackReason: err.message,
+      classification
     };
   }
 }
@@ -81,7 +122,8 @@ router.post('/generate', validate(gameBriefGenerateSchema), async (req, res, nex
         schemaRepair: result.schemaRepair,
         cached: result.cached,
         tokenOptimization: result.tokenOptimization,
-        codeGenerated: false
+        codeGenerated: false,
+        classifier: result.classification ? classifierMetaFor(result.classification) : null
       }
     });
   } catch (err) {

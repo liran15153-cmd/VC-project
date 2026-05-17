@@ -1,0 +1,59 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: GVC
+      - generic [ref=e7]:
+        - generic [ref=e8]: Gaming Vibe
+        - generic [ref=e9]: AI Game Builder
+    - navigation [ref=e10]:
+      - link "⌂ Dashboard" [ref=e11] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e12]: ⌂
+        - text: Dashboard
+      - link "✨ Build a Game" [ref=e13] [cursor=pointer]:
+        - /url: /build
+        - generic [ref=e14]: ✨
+        - text: Build a Game
+      - link "▦ My Games" [ref=e15] [cursor=pointer]:
+        - /url: /games
+        - generic [ref=e16]: ▦
+        - text: My Games
+    - generic [ref=e18]:
+      - generic [ref=e19]: L
+      - generic [ref=e20]:
+        - generic [ref=e21]: Local Creator
+        - generic [ref=e22]: user
+      - button "Sign out" [ref=e23] [cursor=pointer]
+  - main [ref=e24]:
+    - generic [ref=e26]:
+      - button "⛁ 999 / 999 tokens" [ref=e27] [cursor=pointer]:
+        - generic [ref=e28]: ⛁
+        - generic [ref=e29]: 999 / 999 tokens
+      - button "Backend online" [ref=e31] [cursor=pointer]:
+        - generic [ref=e33]: Backend online
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - heading "Welcome, Local Creator" [level=1] [ref=e37]
+        - generic [ref=e38]: Build a full game from a single prompt — answer a few questions and you’re playing in minutes.
+      - generic [ref=e39]:
+        - link "Start here Create a new game Describe what you want to play. AI will ask a few quick questions and generate a playable game. + New Game" [ref=e40] [cursor=pointer]:
+          - /url: /build
+          - generic [ref=e41]: Start here
+          - heading "Create a new game" [level=2] [ref=e42]
+          - paragraph [ref=e43]: Describe what you want to play. AI will ask a few quick questions and generate a playable game.
+          - generic [ref=e44]: + New Game
+        - generic [ref=e45]:
+          - generic [ref=e46]: Tokens remaining
+          - generic [ref=e47]:
+            - text: "999"
+            - generic [ref=e48]: / 999
+          - generic [ref=e49]: "Plan: dev"
+        - generic [ref=e50]:
+          - generic [ref=e51]: My games
+          - generic [ref=e52]: —
+          - link "View all →" [ref=e53] [cursor=pointer]:
+            - /url: /games
+      - generic [ref=e55]:
+        - heading "Recent games" [level=2] [ref=e56]
+        - link "All games →" [ref=e57] [cursor=pointer]:
+          - /url: /games

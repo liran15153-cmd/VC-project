@@ -311,3 +311,70 @@
   cursor: pointer;
 }
 .definition-debug-toggle:hover { color: var(--gray-900); }
+
+/* ── Debug Diagnostics Panel ────────────────────────────────────────────── */
+
+.diagnostics-panel {
+  margin-top: 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  background: var(--gray-25);
+  overflow: hidden;
+  font-size: 12.5px;
+}
+.diagnostics-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--gray-200);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-600);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.diagnostic-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--gray-100);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 8px;
+  align-items: start;
+}
+.diagnostic-item:last-child { border-bottom: none; }
+.diagnostic-item.error { background: #fff7f7; }
+.diagnostic-item.warning { background: #fffbf0; }
+.diagnostic-code {
+  grid-column: 1;
+  grid-row: 1;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.diagnostic-item.error .diagnostic-code { background: #fee2e2; color: #7f1d1d; }
+.diagnostic-item.warning .diagnostic-code { background: #fef9c3; color: #713f12; }
+.diagnostic-message {
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--gray-800);
+  line-height: 1.45;
+}
+.diagnostic-pointer {
+  grid-column: 1 / -1;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-top: 3px;
+}
+.diagnostic-fix {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--gray-600);
+  margin-top: 3px;
+  font-style: italic;
+}

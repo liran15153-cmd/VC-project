@@ -18,6 +18,9 @@ const {
 } = require('./assetResolutionService');
 const { ExternalAPIError } = require('../utils/errors');
 const logger = require('../utils/logger');
+const { runDebugDiagnostics, summarizeDiagnostics } = require('../debugProtocol/diagnostics');
+const { DIAGNOSTIC_CODES } = require('../debugProtocol/types');
+const { repairGameDefinition, REPAIRABLE_CODES, MAX_REPAIR_ITERATIONS } = require('../debugProtocol/repairer');
 
 async function generateEngineGameWithRetries({ prompt, model, brief = null, assetCandidates = [], assetManifest = null, maxOutputTokens = 12000 }) {
   let lastReason = null;
@@ -25,6 +28,7 @@ async function generateEngineGameWithRetries({ prompt, model, brief = null, asse
   let totalDurationMs = 0;
   let lastModel = model || null;
   let lastRaw = null;
+  let bestContractFallback = null;
 
   for (let attempt = 1; attempt <= GENERATION.MAX_RETRIES; attempt++) {
     const result = await generateJSON({
@@ -40,16 +44,53 @@ async function generateEngineGameWithRetries({ prompt, model, brief = null, asse
 
     const check = validateGeneratedGameDefinition(result.json, assetCandidates);
     if (check.ok) {
+      const final = tryRepairAndValidate(check, assetCandidates);
+      if (shouldRetryGenerationContract(final, attempt)) {
+        bestContractFallback = { final, model: result.model, raw: lastRaw };
+        lastReason = final.generationContractReason;
+        logger.warn({ attempt, reason: lastReason }, 'GAME_ENGINE generation contract needs correction');
+        userPrompt = buildEngineCorrectionPrompt({
+          originalPrompt: prompt,
+          validationReason: lastReason,
+          brief,
+          assetCandidates,
+          assetManifest
+        });
+        continue;
+      }
+      logger.info({
+        attempt,
+        schemaOk: true,
+        normalizationWarningCount: (final.warnings || []).length,
+        diagnostics: summarizeDiagnostics(final.debugReport).diagnostics,
+        repaired: final.debugRepair?.accepted || false
+      }, 'GAME_ENGINE GameDefinition validation passed');
       return {
-        gameDefinition: check.data,
+        gameDefinition: final.data,
         model: result.model,
         durationMs: totalDurationMs,
         attempts: attempt,
-        normalizationWarnings: check.warnings || [],
+        normalizationWarnings: final.warnings || [],
+        debugDiagnostics: final.debugReport?.diagnostics || [],
+        debugRepair: final.debugRepair,
+        assetUsageSummary: final.assetUsageSummary,
+        behaviorStateUsageSummary: final.behaviorStateUsageSummary,
+        cameraUsageSummary: final.cameraUsageSummary,
+        generationContractIssues: final.generationContractIssues || [],
         raw: lastRaw
       };
     } else {
       lastReason = check.reason;
+    }
+
+    if (attempt === GENERATION.MAX_RETRIES && bestContractFallback) {
+      logger.warn({ attempt, reason: lastReason }, 'GAME_ENGINE using prior schema-valid candidate after correction attempts failed');
+      return validatedResultPayload(bestContractFallback.final, {
+        model: bestContractFallback.model,
+        durationMs: totalDurationMs,
+        attempts: attempt,
+        raw: bestContractFallback.raw
+      });
     }
 
     logger.warn({ attempt, reason: lastReason }, 'GAME_ENGINE GameDefinition validation failed');
@@ -62,6 +103,15 @@ async function generateEngineGameWithRetries({ prompt, model, brief = null, asse
     });
   }
 
+  if (bestContractFallback) {
+    return validatedResultPayload(bestContractFallback.final, {
+      model: bestContractFallback.model,
+      durationMs: totalDurationMs,
+      attempts: GENERATION.MAX_RETRIES,
+      raw: bestContractFallback.raw
+    });
+  }
+
   throw new ExternalAPIError(
     lastModel || 'AI provider',
     `GameDefinition validation failed after ${GENERATION.MAX_RETRIES} attempts: ${lastReason || 'unknown validation error'}`
@@ -70,6 +120,23 @@ async function generateEngineGameWithRetries({ prompt, model, brief = null, asse
 
 async function generateEngineGameFromBrief({ prompt, answers, gameType, dimension, brief, model, selectedAssetIds = [], debug = false }) {
   return generateEngineGameFromBriefInternal({ prompt, answers, gameType, dimension, brief, model, selectedAssetIds, debug });
+}
+
+function validatedResultPayload(final, { model, durationMs, attempts, raw }) {
+  return {
+    gameDefinition: final.data,
+    model,
+    durationMs,
+    attempts,
+    normalizationWarnings: final.warnings || [],
+    debugDiagnostics: final.debugReport?.diagnostics || [],
+    debugRepair: final.debugRepair,
+    assetUsageSummary: final.assetUsageSummary,
+    behaviorStateUsageSummary: final.behaviorStateUsageSummary,
+    cameraUsageSummary: final.cameraUsageSummary,
+    generationContractIssues: final.generationContractIssues || [],
+    raw
+  };
 }
 
 async function generateEngineGameFromBriefInternal(input, options = {}) {
@@ -114,6 +181,12 @@ async function generateEngineGameFromBriefInternal(input, options = {}) {
         durationMs: toolResult.durationMs,
         attempts: toolResult.attempts,
         normalizationWarnings: toolResult.normalizationWarnings || [],
+        debugDiagnostics: toolResult.debugDiagnostics || [],
+        debugRepair: toolResult.debugRepair || { attempted: false },
+        assetUsageSummary: toolResult.assetUsageSummary,
+        behaviorStateUsageSummary: toolResult.behaviorStateUsageSummary,
+        cameraUsageSummary: toolResult.cameraUsageSummary,
+        generationContractIssues: toolResult.generationContractIssues || [],
         toolCalling: debug ? toolResult.toolCalling : toolSummary(toolResult.toolCalling)
       };
     }
@@ -179,6 +252,12 @@ async function generateFromBriefWithDeterministicAssets({
     durationMs: result.durationMs,
     attempts: result.attempts,
     normalizationWarnings: result.normalizationWarnings || [],
+    debugDiagnostics: result.debugDiagnostics || [],
+    debugRepair: result.debugRepair || { attempted: false },
+    assetUsageSummary: result.assetUsageSummary,
+    behaviorStateUsageSummary: result.behaviorStateUsageSummary,
+    cameraUsageSummary: result.cameraUsageSummary,
+    generationContractIssues: result.generationContractIssues || [],
     raw: result.raw
   };
 }
@@ -281,6 +360,12 @@ async function tryGenerateWithAssetTool({
     durationMs: validated.durationMs,
     attempts: validated.attempts,
     normalizationWarnings: validated.normalizationWarnings || [],
+    debugDiagnostics: validated.debugDiagnostics || [],
+    debugRepair: validated.debugRepair || { attempted: false },
+    assetUsageSummary: validated.assetUsageSummary,
+    behaviorStateUsageSummary: validated.behaviorStateUsageSummary,
+    cameraUsageSummary: validated.cameraUsageSummary,
+    generationContractIssues: validated.generationContractIssues || [],
     toolCalling
   };
 }
@@ -290,19 +375,42 @@ async function validateInitialOrRetry({ initial, prompt, model, brief, assetCand
   let lastModel = initial.model || model || null;
   let lastRaw = initial.raw;
   let lastReason = null;
+  let bestContractFallback = null;
 
   const firstCheck = validateGeneratedGameDefinition(initial.json, assetCandidates);
   if (firstCheck.ok) {
-    return {
-      gameDefinition: firstCheck.data,
-      model: initial.model,
-      durationMs: totalDurationMs,
-      attempts: 1,
-      normalizationWarnings: firstCheck.warnings || [],
-      raw: lastRaw
-    };
+    const final = tryRepairAndValidate(firstCheck, assetCandidates);
+    if (shouldRetryGenerationContract(final, 1)) {
+      bestContractFallback = { final, model: initial.model, raw: lastRaw };
+      lastReason = final.generationContractReason;
+      logger.warn({ attempt: 1, via: 'tool-call', reason: lastReason }, 'GAME_ENGINE generation contract needs correction');
+    } else {
+    logger.info({
+      attempt: 1,
+      via: 'tool-call',
+      schemaOk: true,
+      normalizationWarningCount: (final.warnings || []).length,
+      diagnostics: summarizeDiagnostics(final.debugReport).diagnostics,
+      repaired: final.debugRepair?.accepted || false
+    }, 'GAME_ENGINE GameDefinition validation passed');
+      return {
+        gameDefinition: final.data,
+        model: initial.model,
+        durationMs: totalDurationMs,
+        attempts: 1,
+        normalizationWarnings: final.warnings || [],
+        debugDiagnostics: final.debugReport?.diagnostics || [],
+        debugRepair: final.debugRepair,
+        assetUsageSummary: final.assetUsageSummary,
+        behaviorStateUsageSummary: final.behaviorStateUsageSummary,
+        cameraUsageSummary: final.cameraUsageSummary,
+        generationContractIssues: final.generationContractIssues || [],
+        raw: lastRaw
+      };
+    }
+  } else {
+    lastReason = firstCheck.reason;
   }
-  lastReason = firstCheck.reason;
 
   for (let attempt = 2; attempt <= GENERATION.MAX_RETRIES; attempt++) {
     logger.warn({ attempt: attempt - 1, reason: lastReason }, 'GAME_ENGINE GameDefinition validation failed after tool call');
@@ -324,22 +432,119 @@ async function validateInitialOrRetry({ initial, prompt, model, brief, assetCand
 
     const check = validateGeneratedGameDefinition(result.json, assetCandidates);
     if (check.ok) {
+      const final = tryRepairAndValidate(check, assetCandidates);
+      if (shouldRetryGenerationContract(final, attempt)) {
+        bestContractFallback = { final, model: result.model, raw: lastRaw };
+        lastReason = final.generationContractReason;
+        logger.warn({ attempt, via: 'tool-call-retry', reason: lastReason }, 'GAME_ENGINE generation contract needs correction');
+        continue;
+      }
+      logger.info({
+        attempt,
+        via: 'tool-call-retry',
+        schemaOk: true,
+        normalizationWarningCount: (final.warnings || []).length,
+        diagnostics: summarizeDiagnostics(final.debugReport).diagnostics,
+        repaired: final.debugRepair?.accepted || false
+      }, 'GAME_ENGINE GameDefinition validation passed');
       return {
-        gameDefinition: check.data,
+        gameDefinition: final.data,
         model: result.model,
         durationMs: totalDurationMs,
         attempts: attempt,
-        normalizationWarnings: check.warnings || [],
+        normalizationWarnings: final.warnings || [],
+        debugDiagnostics: final.debugReport?.diagnostics || [],
+        debugRepair: final.debugRepair,
+        assetUsageSummary: final.assetUsageSummary,
+        behaviorStateUsageSummary: final.behaviorStateUsageSummary,
+        cameraUsageSummary: final.cameraUsageSummary,
+        generationContractIssues: final.generationContractIssues || [],
         raw: lastRaw
       };
     }
     lastReason = check.reason;
   }
 
+  if (bestContractFallback) {
+    logger.warn({ reason: lastReason }, 'GAME_ENGINE using prior schema-valid candidate after correction attempts failed');
+    return validatedResultPayload(bestContractFallback.final, {
+      model: bestContractFallback.model || lastModel,
+      durationMs: totalDurationMs,
+      attempts: GENERATION.MAX_RETRIES,
+      raw: bestContractFallback.raw
+    });
+  }
+
   throw new ExternalAPIError(
     lastModel || 'AI provider',
     `GameDefinition validation failed after ${GENERATION.MAX_RETRIES} attempts: ${lastReason || 'unknown validation error'}`
   );
+}
+
+/**
+ * After a successful schema validation + diagnostics pass, attempt up to
+ * MAX_REPAIR_ITERATIONS of deterministic JSON patches for REPAIRABLE_CODES.
+ * Re-validates after each iteration. Accepts the repaired candidate only if
+ * schema is still valid AND no more repairable diagnostics remain.
+ * Falls back to the original validation result if repair cannot fully fix it.
+ */
+function tryRepairAndValidate(validationResult, assetCandidates, options = {}) {
+  // `options.repair` is for tests only: lets us inject a fake repairer to
+  // exercise the safety mechanism (rejection of patches that break schema).
+  // Production always uses the real `repairGameDefinition`.
+  const repair = options.repair || repairGameDefinition;
+
+  const repairableDiags = (validationResult.debugReport?.diagnostics || []).filter((d) => REPAIRABLE_CODES.has(d.code));
+  if (repairableDiags.length === 0) {
+    return { ...validationResult, debugRepair: { attempted: false, accepted: false, appliedPatches: [], skippedCount: 0 } };
+  }
+
+  logger.info({ codes: repairableDiags.map((d) => d.code) }, 'GAME_ENGINE debug repair: starting');
+
+  let current = validationResult.data;
+  let currentDiagnostics = validationResult.debugReport.diagnostics;
+  const allPatches = [];
+  let skippedCount = 0;
+
+  for (let iter = 0; iter < MAX_REPAIR_ITERATIONS; iter += 1) {
+    const repairResult = repair(current, currentDiagnostics);
+    skippedCount = repairResult.skippedDiagnostics.length;
+
+    if (!repairResult.changed) {
+      logger.info({ iter }, 'GAME_ENGINE debug repair: no changes produced, stopping');
+      break;
+    }
+
+    allPatches.push(...repairResult.appliedPatches);
+    logger.info({
+      iter,
+      patches: repairResult.appliedPatches.map((p) => ({ path: p.path, code: p.diagnosticCode }))
+    }, 'GAME_ENGINE debug repair: patches applied');
+
+    const reCheck = validateGeneratedGameDefinition(repairResult.repairedGameDefinition, assetCandidates);
+    if (!reCheck.ok) {
+      logger.warn({ iter, reason: reCheck.reason }, 'GAME_ENGINE debug repair: re-validation failed, rejecting repaired candidate');
+      break;
+    }
+
+    const stillRepairable = (reCheck.debugReport?.diagnostics || []).filter((d) => REPAIRABLE_CODES.has(d.code));
+    if (stillRepairable.length === 0) {
+      logger.info({ iter, totalPatches: allPatches.length }, 'GAME_ENGINE debug repair: accepted');
+      return {
+        ...reCheck,
+        debugRepair: { attempted: true, accepted: true, appliedPatches: allPatches, skippedCount }
+      };
+    }
+
+    current = reCheck.data;
+    currentDiagnostics = reCheck.debugReport.diagnostics;
+  }
+
+  logger.info({ attempted: allPatches.length > 0, skippedCount }, 'GAME_ENGINE debug repair: not accepted, using original');
+  return {
+    ...validationResult,
+    debugRepair: { attempted: allPatches.length > 0, accepted: false, appliedPatches: allPatches, skippedCount }
+  };
 }
 
 function validateGeneratedGameDefinition(json, assetCandidates) {
@@ -350,15 +555,40 @@ function validateGeneratedGameDefinition(json, assetCandidates) {
   }
   const assetUseCheck = validateGeneratedAssetUse(check.data, assetCandidates);
   if (!assetUseCheck.ok) return { ok: false, reason: assetUseCheck.reason };
+  const warnings = [
+    ...(normalizedAssetUse.warnings || []),
+    ...(check.warnings || []),
+    ...(assetUseCheck.warnings || [])
+  ];
+  // Stage 1 debug-protocol diagnostics. Additive: never changes retry flow,
+  // never mutates check.data. See prototype/backend/src/debugProtocol/.
+  const debugReport = runDebugDiagnostics(check.data, {
+    schemaResult: { ok: true },
+    normalizationWarnings: warnings
+  });
+  const behaviorStateUsageSummary = buildBehaviorStateUsageSummary(check.data);
+  const cameraUsageSummary = buildCameraUsageSummary(check.data);
+  const contractCheck = validateGenerationContract({
+    debugReport,
+    normalizationWarnings: warnings,
+    behaviorStateUsageSummary,
+    cameraUsageSummary
+  });
   return {
     ok: true,
     data: check.data,
-    warnings: [
-      ...(normalizedAssetUse.warnings || []),
-      ...(check.warnings || []),
-      ...(assetUseCheck.warnings || [])
-    ]
+    warnings,
+    debugReport,
+    assetUsageSummary: assetUseCheck.assetUsageSummary,
+    behaviorStateUsageSummary,
+    cameraUsageSummary,
+    generationContractIssues: contractCheck.issues || [],
+    generationContractReason: contractCheck.reason || null
   };
+}
+
+function shouldRetryGenerationContract(validationResult, attempt) {
+  return !!validationResult.generationContractReason && attempt < GENERATION.MAX_RETRIES;
 }
 
 function normalizeCandidateAssetUse(json, assetCandidates) {
@@ -392,6 +622,169 @@ function normalizeCandidateAssetUse(json, assetCandidates) {
 
   if (keyRemaps.size) rewriteAssetReferences(candidate, keyRemaps, warnings);
   return { candidate, warnings };
+}
+
+function validateGenerationContract({ debugReport, normalizationWarnings = [], behaviorStateUsageSummary, cameraUsageSummary }) {
+  const contractFailureCodes = new Set([
+    DIAGNOSTIC_CODES.BEHAVIOR_STATE_KEY_MISSING,
+    DIAGNOSTIC_CODES.SCENE_HAS_CAMERA_NO_TARGET,
+    DIAGNOSTIC_CODES.BEHAVIOR_ACTION_UNSUPPORTED,
+    DIAGNOSTIC_CODES.INITIAL_SCENE_NOT_PLAYABLE,
+    DIAGNOSTIC_CODES.PLAYABLE_SCENE_NO_PLAYER,
+    DIAGNOSTIC_CODES.PLAYABLE_SCENE_NO_GROUND_COLLIDER,
+    DIAGNOSTIC_CODES.PLAYABLE_SCENE_NO_BEHAVIOR_RULES
+  ]);
+  const failingCodes = new Set((debugReport?.diagnostics || [])
+    .filter((diagnostic) => contractFailureCodes.has(diagnostic.code))
+    .map((diagnostic) => diagnostic.code));
+  const reasons = [];
+  const diagnostics = debugReport?.diagnostics || [];
+  const unsupportedActionWarnings = (normalizationWarnings || [])
+    .filter((warning) => warning?.code === 'normalized.actionUnsupportedDropped');
+  if (unsupportedActionWarnings.length > 0) {
+    failingCodes.add(DIAGNOSTIC_CODES.BEHAVIOR_ACTION_UNSUPPORTED);
+  }
+
+  if ((behaviorStateUsageSummary?.missingStateKeys || []).length > 0 || failingCodes.has(DIAGNOSTIC_CODES.BEHAVIOR_STATE_KEY_MISSING)) {
+    failingCodes.add(DIAGNOSTIC_CODES.BEHAVIOR_STATE_KEY_MISSING);
+    reasons.push(
+      `BEHAVIOR_STATE_KEY_MISSING: missingStateKeys=${JSON.stringify(behaviorStateUsageSummary.missingStateKeys)}; ` +
+      `declaredStateKeys=${JSON.stringify(behaviorStateUsageSummary.declaredStateKeys)}; ` +
+      `referencedStateKeys=${JSON.stringify(behaviorStateUsageSummary.referencedStateKeys)}. ` +
+      'Every behavior trigger, condition, or action that references a state key must use a key declared in top-level state.'
+    );
+  }
+
+  if ((cameraUsageSummary?.scenesMissingCameraTarget || []).length > 0 || failingCodes.has(DIAGNOSTIC_CODES.SCENE_HAS_CAMERA_NO_TARGET)) {
+    failingCodes.add(DIAGNOSTIC_CODES.SCENE_HAS_CAMERA_NO_TARGET);
+    reasons.push(
+      `SCENE_HAS_CAMERA_NO_TARGET: scenesMissingCameraTarget=${JSON.stringify(cameraUsageSummary.scenesMissingCameraTarget)}. ` +
+      'Every scene with the camera system must have one entity with cameraTarget; prefer the player entity when available.'
+    );
+  }
+
+  if (failingCodes.has(DIAGNOSTIC_CODES.BEHAVIOR_ACTION_UNSUPPORTED)) {
+    const unsupportedDiagnostics = diagnostics
+      .filter((diagnostic) => diagnostic.code === DIAGNOSTIC_CODES.BEHAVIOR_ACTION_UNSUPPORTED)
+      .map((diagnostic) => ({ message: diagnostic.message, pointer: diagnostic.jsonPointer, actual: diagnostic.actual }));
+    const droppedWarnings = unsupportedActionWarnings
+      .map((warning) => ({ path: warning.path, message: warning.message, before: warning.before }));
+    reasons.push(
+      `BEHAVIOR_ACTION_UNSUPPORTED: diagnostics=${JSON.stringify(unsupportedDiagnostics)}; ` +
+      `droppedActions=${JSON.stringify(droppedWarnings)}. ` +
+      'Use only supported runtime behavior actions. Do not rely on actions that normalization drops.'
+    );
+  }
+
+  const playabilityCodes = [
+    DIAGNOSTIC_CODES.INITIAL_SCENE_NOT_PLAYABLE,
+    DIAGNOSTIC_CODES.PLAYABLE_SCENE_NO_PLAYER,
+    DIAGNOSTIC_CODES.PLAYABLE_SCENE_NO_GROUND_COLLIDER,
+    DIAGNOSTIC_CODES.PLAYABLE_SCENE_NO_BEHAVIOR_RULES
+  ];
+  const playabilityDiagnostics = diagnostics
+    .filter((diagnostic) => playabilityCodes.includes(diagnostic.code))
+    .map((diagnostic) => ({
+      code: diagnostic.code,
+      message: diagnostic.message,
+      pointer: diagnostic.jsonPointer,
+      expected: diagnostic.expected,
+      actual: diagnostic.actual
+    }));
+  if (playabilityDiagnostics.length > 0) {
+    for (const diagnostic of playabilityDiagnostics) failingCodes.add(diagnostic.code);
+    reasons.push(
+      `PLAYABILITY_CONTRACT_FAILED: diagnostics=${JSON.stringify(playabilityDiagnostics)}. ` +
+      'initialScene must be the gameplay scene and must include a dynamic player, a static ground/platform collider, and supported root/scene behavior rules.'
+    );
+  }
+
+  if (reasons.length === 0) return { ok: true, issues: [] };
+  return {
+    ok: false,
+    issues: [...failingCodes],
+    reason: `Generation contract failed: ${reasons.join(' ')}`
+  };
+}
+
+const ACTIONS_WITH_STATE_KEY = new Set(['setState', 'incrementState', 'decrementState']);
+
+function buildBehaviorStateUsageSummary(gameDefinition) {
+  const declaredStateKeys = uniqueSorted(Object.keys(gameDefinition?.state || {}));
+  const declared = new Set(declaredStateKeys);
+  const refs = [];
+
+  const addRef = (key, source) => {
+    if (typeof key !== 'string' || !key.trim()) return;
+    refs.push({ key: key.trim(), source });
+  };
+
+  const inspectBehaviors = (behaviors, sourcePrefix) => {
+    if (!Array.isArray(behaviors)) return;
+    for (let b = 0; b < behaviors.length; b += 1) {
+      const behavior = behaviors[b];
+      if (!behavior || typeof behavior !== 'object') continue;
+      const trigger = behavior.trigger;
+      if (trigger && typeof trigger === 'object') {
+        addRef(trigger.stateKey || trigger.key, `${sourcePrefix}.${b}.trigger`);
+      }
+      for (let c = 0; c < (behavior.conditions || []).length; c += 1) {
+        const condition = behavior.conditions[c];
+        addRef(condition?.stateKey || condition?.key, `${sourcePrefix}.${b}.conditions.${c}`);
+      }
+      for (let a = 0; a < (behavior.actions || []).length; a += 1) {
+        const action = behavior.actions[a];
+        const type = action?.type || action?.action;
+        if (ACTIONS_WITH_STATE_KEY.has(type)) {
+          addRef(action.stateKey || action.key, `${sourcePrefix}.${b}.actions.${a}`);
+        }
+      }
+    }
+  };
+
+  inspectBehaviors(gameDefinition?.behaviors, 'behaviors');
+  for (let s = 0; s < (gameDefinition?.scenes || []).length; s += 1) {
+    inspectBehaviors(gameDefinition.scenes[s]?.behaviors, `scenes.${s}.behaviors`);
+  }
+
+  const referencedStateKeys = uniqueSorted(refs.map((ref) => ref.key));
+  const missingStateKeys = referencedStateKeys.filter((key) => !declared.has(key));
+  const referenced = new Set(referencedStateKeys);
+  const unusedStateKeys = declaredStateKeys.filter((key) => !referenced.has(key));
+
+  return {
+    declaredStateKeys,
+    referencedStateKeys,
+    missingStateKeys,
+    unusedStateKeys
+  };
+}
+
+function buildCameraUsageSummary(gameDefinition) {
+  const scenesWithCameraSystem = [];
+  const scenesMissingCameraTarget = [];
+
+  for (let s = 0; s < (gameDefinition?.scenes || []).length; s += 1) {
+    const scene = gameDefinition.scenes[s];
+    const systems = Array.isArray(scene?.systems) ? scene.systems : [];
+    const entities = Array.isArray(scene?.entities) ? scene.entities : [];
+    if (!systems.includes('camera')) continue;
+    const sceneKey = scene?.key || `scene_${s}`;
+    scenesWithCameraSystem.push(sceneKey);
+    const hasTarget = entities.some((entity) => entity?.cameraTarget && typeof entity.cameraTarget === 'object');
+    if (hasTarget) continue;
+    const preferred = entities.find((entity) => entity?.key === 'player' || (entity?.tags || []).includes('player')) || entities[0] || null;
+    scenesMissingCameraTarget.push({
+      sceneKey,
+      sceneIndex: s,
+      preferredTargetKey: preferred?.key || null
+    });
+  }
+
+  return {
+    scenesWithCameraSystem,
+    scenesMissingCameraTarget
+  };
 }
 
 function resolveAssetsForBriefToolSchema() {
@@ -519,7 +912,19 @@ function logToolSummary(toolCalling, result) {
 }
 
 function validateGeneratedAssetUse(gameDefinition, assetCandidates) {
-  if (!assetCandidates.length || !Array.isArray(gameDefinition.assets)) return { ok: true, warnings: [] };
+  const assetUsageSummary = buildAssetUsageSummary(gameDefinition, assetCandidates);
+  if (!assetCandidates.length) {
+    if (assetUsageSummary.invalidAssetKeys.length > 0) {
+      return {
+        ok: false,
+        reason: `Generated asset "${assetUsageSummary.invalidAssetKeys[0]}" is not in the supplied asset candidates.`,
+        warnings: [],
+        assetUsageSummary
+      };
+    }
+    return { ok: true, warnings: [], assetUsageSummary };
+  }
+  if (!Array.isArray(gameDefinition.assets)) return { ok: true, warnings: [], assetUsageSummary };
 
   const allowed = new Map(assetCandidates.map((asset) => [asset.id, asset]));
   const aliases = buildAssetAliases(assetCandidates);
@@ -529,7 +934,12 @@ function validateGeneratedAssetUse(gameDefinition, assetCandidates) {
   for (const [index, asset] of gameDefinition.assets.entries()) {
     const source = allowed.get(asset.key) || aliases.get(normalize(asset.key)) || aliases.get(normalize(asset.name)) || aliases.get(normalize(asset.url));
     if (!source) {
-      return { ok: false, reason: `Generated asset "${asset.key}" is not in the supplied asset candidates.` };
+      return {
+        ok: false,
+        reason: `Generated asset "${asset.key}" is not in the supplied asset candidates. INVALID_ASSET_DETAILS=${JSON.stringify(invalidAssetDetails(asset))}`,
+        warnings,
+        assetUsageSummary
+      };
     }
     if (asset.key !== source.id) {
       keyRemaps.set(asset.key, source.id);
@@ -549,7 +959,95 @@ function validateGeneratedAssetUse(gameDefinition, assetCandidates) {
 
   if (keyRemaps.size) rewriteAssetReferences(gameDefinition, keyRemaps, warnings);
 
-  return { ok: true, warnings };
+  return { ok: true, warnings, assetUsageSummary: buildAssetUsageSummary(gameDefinition, assetCandidates) };
+}
+
+function buildAssetUsageSummary(gameDefinition, assetCandidates = []) {
+  const allowedAssetKeys = uniqueSorted(assetCandidates.map((asset) => asset.id));
+  const requiredAssetKeys = uniqueSorted(assetCandidates.filter(isRequiredAssetCandidate).map((asset) => asset.id));
+  const allowed = new Set(allowedAssetKeys);
+  const declaredAssetKeys = Array.isArray(gameDefinition?.assets)
+    ? gameDefinition.assets.map((asset) => asset?.key).filter((key) => typeof key === 'string' && key)
+    : [];
+  const referencedAssetKeys = collectReferencedAssetKeys(gameDefinition);
+  const candidateKeysToCheck = uniqueSorted([...declaredAssetKeys, ...referencedAssetKeys]);
+  const invalidAssetKeys = candidateKeysToCheck.filter((key) => !allowed.has(key));
+  const usedAssetKeys = referencedAssetKeys.filter((key) => allowed.has(key));
+  const usedSet = new Set(usedAssetKeys);
+  const unusedAssetKeys = allowedAssetKeys.filter((key) => !usedSet.has(key));
+  const usedRequiredAssetKeys = requiredAssetKeys.filter((key) => usedSet.has(key));
+  const unusedRequiredAssetKeys = requiredAssetKeys.filter((key) => !usedSet.has(key));
+
+  return {
+    allowedAssetCount: allowedAssetKeys.length,
+    usedAssetCount: usedAssetKeys.length,
+    unusedAssetCount: unusedAssetKeys.length,
+    invalidAssetKeys,
+    unusedAssetKeys,
+    usedAssetKeys,
+    requiredAssetUsedCount: usedRequiredAssetKeys.length,
+    unusedRequiredAssetKeys
+  };
+}
+
+function isRequiredAssetCandidate(asset) {
+  const role = normalize(asset?.role);
+  const confidence = Number(asset?.confidenceScore || 0);
+  if (confidence < 0.65) return false;
+  return ['player', 'main-character', 'character', 'environment', 'terrain', 'platform', 'world', 'enemy', 'main-enemy'].includes(role);
+}
+
+function invalidAssetDetails(asset) {
+  return {
+    key: asset?.key || null,
+    type: asset?.type || null,
+    name: asset?.name || null,
+    url: asset?.url || null,
+    role: inferRoleFromAssetLike(asset),
+    dimension: inferDimensionFromAssetLike(asset)
+  };
+}
+
+function collectReferencedAssetKeys(gameDefinition) {
+  const keys = [];
+  const collectEntity = (entity) => {
+    if (!entity || typeof entity !== 'object') return;
+    if (typeof entity.model?.assetKey === 'string') keys.push(entity.model.assetKey);
+    if (entity.sprite?.kind === 'image' && typeof entity.sprite.assetKey === 'string') keys.push(entity.sprite.assetKey);
+  };
+
+  for (const scene of gameDefinition?.scenes || []) {
+    for (const entity of scene.entities || []) collectEntity(entity);
+    collectAudioKeys(scene.audio, keys);
+    collectBehaviorAssetKeys(scene.behaviors, keys);
+  }
+  for (const prefab of Object.values(gameDefinition?.prefabs || {})) collectEntity(prefab);
+  collectAudioKeys(gameDefinition?.audio, keys);
+  collectBehaviorAssetKeys(gameDefinition?.behaviors, keys);
+  return uniqueSorted(keys);
+}
+
+function collectAudioKeys(rules, keys) {
+  if (!Array.isArray(rules)) return;
+  for (const rule of rules) {
+    const key = rule?.asset || rule?.sound;
+    if (typeof key === 'string' && key) keys.push(key);
+  }
+}
+
+function collectBehaviorAssetKeys(behaviors, keys) {
+  if (!Array.isArray(behaviors)) return;
+  for (const behavior of behaviors) {
+    for (const action of behavior?.actions || []) {
+      if (action?.type !== 'playSound') continue;
+      const key = action.asset || action.sound;
+      if (typeof key === 'string' && key) keys.push(key);
+    }
+  }
+}
+
+function uniqueSorted(values) {
+  return [...new Set(values.filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim()))].sort();
 }
 
 function buildAssetAliases(assetCandidates) {
@@ -603,6 +1101,24 @@ function runtimeAssetType(asset) {
   return 'image';
 }
 
+function inferRoleFromAssetLike(asset) {
+  const text = normalize([asset?.key, asset?.name, asset?.url].filter(Boolean).join(' '));
+  if (text.includes('ui') || text.includes('hud') || text.includes('button') || text.includes('arrow')) return 'ui';
+  if (text.includes('player') || text.includes('hero') || text.includes('character')) return 'player';
+  if (text.includes('enemy') || text.includes('monster')) return 'enemy';
+  if (text.includes('coin') || text.includes('gem') || text.includes('collect')) return 'collectible';
+  if (text.includes('ground') || text.includes('platform') || text.includes('terrain')) return 'platform';
+  if (text.includes('sound') || text.includes('audio') || text.includes('music')) return 'audio';
+  return null;
+}
+
+function inferDimensionFromAssetLike(asset) {
+  const type = normalize(asset?.type);
+  if (type === 'gltf') return '3D';
+  if (['image', 'spritesheet', 'atlas', 'tilemap'].includes(type)) return '2D';
+  return null;
+}
+
 function promptFromBrief(prompt, brief) {
   return prompt || [
     brief.title,
@@ -628,6 +1144,8 @@ function assetCandidateForGeneration(asset) {
     pack: asset.pack,
     sourcePack: asset.sourcePack,
     sourceRelativePath: asset.sourceRelativePath,
+    role: asset.role,
+    dimension: asset.dimension || asset.assetDimension,
     roleHints: asset.roleHints,
     variant: asset.variant,
     scale: asset.scale,
@@ -648,6 +1166,12 @@ module.exports = {
   generateEngineGameFromBriefInternal,
   generateEngineGameWithRetries,
   validateGeneratedAssetUse,
+  buildAssetUsageSummary,
+  buildBehaviorStateUsageSummary,
+  buildCameraUsageSummary,
   sanitizeResolveAssetsToolArgs,
-  resolveAssetsForBriefToolSchema
+  resolveAssetsForBriefToolSchema,
+  // Exported for integration testing (Stage 2B):
+  validateGeneratedGameDefinition,
+  tryRepairAndValidate
 };

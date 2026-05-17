@@ -16,6 +16,7 @@ const {
 } = require('../services/engineGenerationService');
 const { ExternalAPIError } = require('../utils/errors');
 const config = require('../config/env');
+const { buildDiagnosticsSummary } = require('../debugProtocol/diagnostics');
 
 const router = express.Router();
 
@@ -54,12 +55,23 @@ router.post('/from-brief', validate(engineFromBriefGenerateSchema), async (req, 
 
     const ar = result.assetResolution || {};
     const coherence = ar.meta?.coherence || {};
+    const debugDiagnostics = result.debugDiagnostics || [];
+    const normalizationWarnings = result.normalizationWarnings || [];
+    const debugRepair = result.debugRepair || { attempted: false, accepted: false, appliedPatches: [], skippedCount: 0 };
     res.json({
       brief: result.brief,
       selectedAssets: result.selectedAssets,
       assetResolution: result.assetResolution,
       assetManifest: result.assetManifest,
       gameDefinition: result.gameDefinition,
+      assetUsageSummary: result.assetUsageSummary,
+      behaviorStateUsageSummary: result.behaviorStateUsageSummary,
+      cameraUsageSummary: result.cameraUsageSummary,
+      generationContractIssues: result.generationContractIssues || [],
+      normalizationWarnings,
+      debugDiagnostics,
+      debugDiagnosticsSummary: buildDiagnosticsSummary(debugDiagnostics),
+      debugRepair,
       meta: {
         provider: config.ai.provider,
         model: result.model,
@@ -72,10 +84,18 @@ router.post('/from-brief', validate(engineFromBriefGenerateSchema), async (req, 
         dominantPack: coherence.dominantGameplayPack || coherence.dominantPack || null,
         gameType: ar.meta?.gameType || null,
         toolCalling: result.toolCalling,
-        normalizationWarningCount: result.normalizationWarnings?.length || 0,
+        normalizationWarningCount: normalizationWarnings.length,
+        debugDiagnosticErrorCount: debugDiagnostics.filter((d) => d.severity === 'error').length,
+        debugDiagnosticWarningCount: debugDiagnostics.filter((d) => d.severity === 'warning').length,
+        debugRepairAccepted: debugRepair.accepted || false,
+        debugRepairPatchCount: debugRepair.appliedPatches?.length || 0,
+        assetUsageSummary: result.assetUsageSummary,
+        behaviorStateUsageSummary: result.behaviorStateUsageSummary,
+        cameraUsageSummary: result.cameraUsageSummary,
+        generationContractIssueCount: result.generationContractIssues?.length || 0,
         persistence: 'supabase_pending'
       },
-      ...(debug ? { debug: { toolCalling: result.toolCalling, normalizationWarnings: result.normalizationWarnings || [] } } : {})
+      ...(debug ? { debug: { toolCalling: result.toolCalling } } : {})
     });
   } catch (err) {
     next(toUserFacingGenerationError(err));

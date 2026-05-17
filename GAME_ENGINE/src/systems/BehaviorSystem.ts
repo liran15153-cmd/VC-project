@@ -4,6 +4,8 @@ import type { EntityId, ISystem, SystemContext, Vec3 } from '../core/types';
 import { EntityInfo } from '../components/EntityInfo';
 import { RigidBodyComponent } from '../components/RigidBody';
 import { Transform } from '../components/Transform';
+import { PhysicsDynamics } from '../physics/PhysicsDynamics';
+import type { TriggerVolumePhase, TriggerVolumeRegistry } from '../runtime/TriggerVolumes';
 import { emitCollision, entityInfo, entityTags, RuntimeSceneApi, selectEntities, type CollisionContext } from './RuntimeSceneApi';
 
 type TriggerObject = Record<string, unknown>;
@@ -25,6 +27,7 @@ export class BehaviorSystem implements ISystem {
   constructor(
     private readonly behaviors: BehaviorDefinition[],
     private readonly api: RuntimeSceneApi,
+    private readonly triggerVolumes?: TriggerVolumeRegistry,
   ) {}
 
   init({ engine }: SystemContext): void {
@@ -85,17 +88,13 @@ export class BehaviorSystem implements ISystem {
 
   private runCollisionTriggers(ctx: SystemContext): void {
     if (!ctx.engine.physics?.isReady()) return;
-    const colliderToEntity = new Map<number, EntityId>();
-    for (const { id, components } of ctx.world.query(RigidBodyComponent)) {
-      const collider = (components[0] as RigidBodyComponent).collider;
-      if (collider) colliderToEntity.set(collider.handle, id);
-    }
 
-    ctx.engine.physics.drainCollisionEvents((event) => {
-      const entityA = colliderToEntity.get(event.colliderA);
-      const entityB = colliderToEntity.get(event.colliderB);
-      if (entityA === undefined || entityB === undefined) return;
-      const base: CollisionContext = { entityA, entityB, started: event.started };
+    ctx.engine.physics.drainPhysicsEvents((event) => {
+      const base: CollisionContext = {
+        entityA: event.entityA,
+        entityB: event.entityB,
+        started: event.type === 'collisionEnter' || event.type === 'sensorEnter',
+      };
       emitCollision(ctx.engine, ctx.world, base);
 
       this.runTriggered(ctx, (behavior) => {
@@ -106,7 +105,31 @@ export class BehaviorSystem implements ISystem {
         this.runBehavior(ctx, behavior, oriented);
         return false;
       });
+
+      this.runTriggerVolumeActions(ctx, event.entityA, event.entityB, event.type);
+      this.runTriggerVolumeActions(ctx, event.entityB, event.entityA, event.type);
     });
+  }
+
+  private runTriggerVolumeActions(
+    ctx: SystemContext,
+    triggerEntity: EntityId,
+    otherEntity: EntityId,
+    eventType: string,
+  ): void {
+    if (!this.triggerVolumes?.has(triggerEntity)) return;
+    const phase = phaseForEventType(eventType);
+    if (!phase) return;
+    const actions = this.triggerVolumes.getActions(triggerEntity, phase);
+    if (!actions || !actions.length) return;
+    const collision: CollisionContext = {
+      entityA: triggerEntity,
+      entityB: otherEntity,
+      started: phase === 'onEnter',
+      self: triggerEntity,
+      other: otherEntity,
+    };
+    for (const action of actions) this.runAction(ctx, action as ActionObject, collision);
   }
 
   private runStateChangeTriggers(ctx: SystemContext): void {
@@ -206,10 +229,14 @@ export class BehaviorSystem implements ISystem {
     for (const id of targets) {
       if (type === 'destroyEntity') this.api.destroyEntity(id);
       else if (type === 'applyImpulse') this.applyImpulse(ctx, id, vec3(action.value));
-      else if (type === 'setVelocity') this.setVelocity(ctx, id, vec3(action.value));
+      else if (type === 'applyForce') this.applyForce(ctx, id, vec3(action.value));
+      else if (type === 'applyTorque') this.applyTorque(ctx, id, vec3(action.value));
+      else if (type === 'setVelocity' || type === 'setLinearVelocity') this.setVelocity(ctx, id, vec3(action.value));
       else if (type === 'setVelocityX') this.setVelocityAxis(ctx, id, 'x', number(action.value ?? action.amount) ?? 0);
       else if (type === 'setVelocityY') this.setVelocityAxis(ctx, id, 'y', number(action.value ?? action.amount) ?? 0);
       else if (type === 'setVelocityZ') this.setVelocityAxis(ctx, id, 'z', number(action.value ?? action.amount) ?? 0);
+      else if (type === 'setAngularVelocity') this.setAngularVelocity(ctx, id, vec3(action.value));
+      else if (type === 'addKnockback') this.addKnockback(ctx, id, vec3(action.value ?? action.direction), action);
       else if (type === 'setPosition') this.setPosition(ctx, id, vec3(action.value ?? action.position));
       else if (type === 'translate') this.translate(ctx, id, vec3(action.value));
       else if (type === 'addTag') this.addTag(ctx, id, text(action.tag ?? action.value));
@@ -219,21 +246,41 @@ export class BehaviorSystem implements ISystem {
 
   private applyImpulse(ctx: SystemContext, id: EntityId, value?: Vec3): void {
     if (!value) return;
-    const body = ctx.world.getComponent(id, RigidBodyComponent)?.body;
-    body?.applyImpulse(value, true);
+    if (ctx.engine.physics?.isReady()) PhysicsDynamics.applyImpulse(ctx.engine.physics, id, value);
+  }
+
+  private applyForce(ctx: SystemContext, id: EntityId, value?: Vec3): void {
+    if (!value) return;
+    if (ctx.engine.physics?.isReady()) PhysicsDynamics.applyForce(ctx.engine.physics, id, value);
+  }
+
+  private applyTorque(ctx: SystemContext, id: EntityId, value?: Vec3): void {
+    if (!value) return;
+    if (ctx.engine.physics?.isReady()) PhysicsDynamics.applyTorque(ctx.engine.physics, id, value);
   }
 
   private setVelocity(ctx: SystemContext, id: EntityId, value?: Vec3): void {
     if (!value) return;
-    const body = ctx.world.getComponent(id, RigidBodyComponent)?.body;
-    if (body) body.setLinvel(value, true);
+    if (ctx.engine.physics?.isReady()) PhysicsDynamics.setLinearVelocity(ctx.engine.physics, id, value);
   }
 
   private setVelocityAxis(ctx: SystemContext, id: EntityId, axis: 'x' | 'y' | 'z', value: number): void {
-    const body = ctx.world.getComponent(id, RigidBodyComponent)?.body;
-    if (!body) return;
-    const current = body.linvel();
-    body.setLinvel({ x: axis === 'x' ? value : current.x, y: axis === 'y' ? value : current.y, z: axis === 'z' ? value : current.z }, true);
+    if (ctx.engine.physics?.isReady()) PhysicsDynamics.setLinearVelocityAxis(ctx.engine.physics, id, axis, value);
+  }
+
+  private setAngularVelocity(ctx: SystemContext, id: EntityId, value?: Vec3): void {
+    if (!value) return;
+    if (ctx.engine.physics?.isReady()) PhysicsDynamics.setAngularVelocity(ctx.engine.physics, id, value);
+  }
+
+  private addKnockback(ctx: SystemContext, id: EntityId, direction: Vec3 | undefined, action: ActionObject): void {
+    if (!direction) return;
+    if (!ctx.engine.physics?.isReady()) return;
+    PhysicsDynamics.addKnockback(ctx.engine.physics, id, direction, {
+      power: number(action.power) ?? number(action.amount) ?? 1,
+      upwardBias: number(action.upwardBias) ?? 0,
+      clearVelocity: action.clearVelocity === true,
+    });
   }
 
   private setPosition(ctx: SystemContext, id: EntityId, value?: Vec3): void {
@@ -271,6 +318,13 @@ export class BehaviorSystem implements ISystem {
   private triggerObject(trigger: BehaviorDefinition['trigger']): TriggerObject {
     return typeof trigger === 'string' ? { type: trigger } : (trigger as TriggerObject);
   }
+}
+
+function phaseForEventType(eventType: string): TriggerVolumePhase | null {
+  if (eventType === 'sensorEnter' || eventType === 'collisionEnter') return 'onEnter';
+  if (eventType === 'sensorExit' || eventType === 'collisionExit') return 'onExit';
+  if (eventType === 'collisionStay') return 'onStay';
+  return null;
 }
 
 function orientCollision(world: SystemContext['world'], context: CollisionContext, entityTag?: string, withTag?: string): CollisionContext | null {

@@ -61,11 +61,35 @@
         max-height: calc(100vh - 32px);
         overflow: auto;
       }
+
+      #physics-debug-toggle {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        z-index: 30;
+        padding: 8px 10px;
+        border: 1px solid rgba(153, 246, 228, 0.55);
+        border-radius: 999px;
+        background: rgba(9, 13, 20, 0.88);
+        color: #99f6e4;
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      #physics-debug-toggle[aria-pressed="true"] {
+        background: rgba(20, 184, 166, 0.25);
+      }
+
+      .hidden {
+        display: none;
+      }
     </style>
   </head>
   <body>
     <div id="game-root"></div>
     <div id="fallback" class="ready">Preview booting…</div>
+    <button id="physics-debug-toggle" class="hidden" type="button" aria-pressed="false">Physics debug: off</button>
     <script type="module" src="./preview.ts"></script>
   </body>
 </html>

@@ -38,6 +38,10 @@ export class Engine {
   readonly events = new EventBus<EngineEvents>();
   readonly state = new GameStateStore();
 
+  /** Fraction (0..1) of the unfilled fixed-step accumulator after the last physics loop.
+   *  Renderers can use this to interpolate visual state between physics frames. */
+  physicsAlpha = 0;
+
   private rafId = 0;
   private lastTs = 0;
   private elapsed = 0;
@@ -214,6 +218,10 @@ export class Engine {
           this.accumulator -= this.config.fixedTimeStep;
           fixedSteps++;
         }
+        const fixedDt = this.config.fixedTimeStep;
+        this.physicsAlpha = fixedDt > 0 ? Math.max(0, Math.min(1, this.accumulator / fixedDt)) : 1;
+      } else {
+        this.physicsAlpha = 1;
       }
       this.events.emit('frame:after-physics', makeFrameInfo());
     } catch (error) {

@@ -6,7 +6,7 @@ import { useHealth } from '../health/HealthContext';
 import GamePreview from '../game-preview/GamePreview';
 import GameDefinitionPreview, { type PreviewStatusEvent } from '../game-preview/GameDefinitionPreview';
 import type {
-  Dimension, EngineFromBriefResponse, GameBrief, GameBriefGenerateResponse, GenerateGameResponse, Genre, MCQGenerateResponse, MCQQuestion,
+  DebugDiagnostic, Dimension, EngineFromBriefResponse, GameBrief, GameBriefGenerateResponse, GenerateGameResponse, Genre, MCQGenerateResponse, MCQQuestion,
 } from '../../types/api';
 import { GENRES_2D, GENRES_3D, GENRES_HYBRID } from '../../types/api';
 import './GameBuilderPage.css';
@@ -333,6 +333,7 @@ export default function GameBuilderPage() {
                 {typeof result.meta.durationMs === 'number' && ` · ${(result.meta.durationMs / 1000).toFixed(1)}s`}
                 {result.meta.attempts && result.meta.attempts > 1 && ` · ${result.meta.attempts} attempts`}
                 {'fallback' in result.meta && result.meta.fallback && <span className="badge amber" style={{ marginLeft: 8 }}>fallback</span>}
+                {'debugRepair' in result && (result as EngineFromBriefResponse).debugRepair?.accepted && <span className="badge" style={{ marginLeft: 8 }}>auto-repaired</span>}
               </div>
             </div>
             <div className="row" style={{ gap: 8 }}>
@@ -351,6 +352,9 @@ export default function GameBuilderPage() {
                 title={resultTitle(result)}
                 onStatusChange={onPreviewStatus}
               />
+              {'debugDiagnostics' in result && Array.isArray(result.debugDiagnostics) && result.debugDiagnostics.length > 0 && (
+                <DiagnosticsPanel diagnostics={result.debugDiagnostics} />
+              )}
               <div className="row" style={{ marginTop: 12, gap: 8, alignItems: 'center' }}>
                 <button
                   type="button"
@@ -491,6 +495,37 @@ function BriefList({ title, items }: { title: string; items: string[] }) {
           <li key={item}>{item}</li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function DiagnosticsPanel({ diagnostics }: { diagnostics: DebugDiagnostic[] }) {
+  const errors = diagnostics.filter((d) => d.severity === 'error');
+  const warnings = diagnostics.filter((d) => d.severity === 'warning');
+  const sorted = [...errors, ...warnings];
+  return (
+    <div className="diagnostics-panel" data-testid="diagnostics-panel">
+      <div className="diagnostics-header">
+        <span>Debug diagnostics</span>
+        {errors.length > 0 && (
+          <span className="badge" style={{ background: '#fee2e2', color: '#7f1d1d', borderColor: '#fca5a5' }}>
+            {errors.length} error{errors.length !== 1 ? 's' : ''}
+          </span>
+        )}
+        {warnings.length > 0 && (
+          <span className="badge amber">
+            {warnings.length} warning{warnings.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+      {sorted.map((d, i) => (
+        <div key={i} className={`diagnostic-item ${d.severity}`}>
+          <div className="diagnostic-code" data-testid="diagnostic-code">{d.code}</div>
+          <div className="diagnostic-message">{d.message}</div>
+          {d.jsonPointer && <div className="diagnostic-pointer">{d.jsonPointer}</div>}
+          {d.suggestedFixText && <div className="diagnostic-fix">Fix: {d.suggestedFixText}</div>}
+        </div>
+      ))}
     </div>
   );
 }

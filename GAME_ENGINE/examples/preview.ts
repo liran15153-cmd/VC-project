@@ -13,14 +13,18 @@ import {
 } from '../src/preview';
 import { Engine } from '../src/core/Engine';
 import { GameRuntime } from '../src/runtime/GameRuntime';
+import { PhysicsDebugOverlay } from '../src/physics/PhysicsDebugOverlay';
 
 const gameRoot = document.querySelector<HTMLDivElement>('#game-root');
 const fallback = document.querySelector<HTMLDivElement>('#fallback');
+const physicsDebugToggle = document.querySelector<HTMLButtonElement>('#physics-debug-toggle');
 if (!gameRoot || !fallback) {
   throw new Error('preview.html is missing #game-root or #fallback nodes.');
 }
 
 let parentOrigin: string | null = readReferrerOrigin();
+let physicsDebugEnabled = readPhysicsDebugFlag();
+let physicsDebugOverlay: PhysicsDebugOverlay | null = null;
 
 function postToParent(event: PreviewEvent): void {
   if (!window.parent || window.parent === window) return;
@@ -37,9 +41,22 @@ const controller = new PreviewController({
     updateFallback(event);
     postToParent(event);
   },
-  engineFactory: (config) => new Engine(config),
+  engineFactory: (config) => {
+    const engine = new Engine(config);
+    attachPhysicsDebugOverlay(engine);
+    return engine;
+  },
   runtimeFactory: (engine) => new GameRuntime(engine),
 });
+
+if (physicsDebugToggle) {
+  const showDebugControls = physicsDebugEnabled || hasUrlFlag('physicsDebugControls') || hasUrlFlag('debugControls');
+  physicsDebugToggle.classList.toggle('hidden', !showDebugControls);
+  physicsDebugToggle.addEventListener('click', () => {
+    setPhysicsDebugEnabled(!physicsDebugEnabled);
+  });
+  updatePhysicsDebugToggle();
+}
 
 window.addEventListener('message', (event) => {
   // Lock to the first origin we observe so subsequent messages from
@@ -76,6 +93,39 @@ function readReferrerOrigin(): string | null {
   } catch {
     return null;
   }
+}
+
+function attachPhysicsDebugOverlay(engine: Engine): void {
+  physicsDebugOverlay?.destroy();
+  const overlay = new PhysicsDebugOverlay(engine);
+  physicsDebugOverlay = overlay;
+  overlay.setEnabled(physicsDebugEnabled);
+  engine.events.on('frame:after-systems', () => overlay.update());
+  engine.events.on('destroy', () => {
+    overlay.destroy();
+    if (physicsDebugOverlay === overlay) physicsDebugOverlay = null;
+  });
+}
+
+function setPhysicsDebugEnabled(enabled: boolean): void {
+  physicsDebugEnabled = enabled;
+  physicsDebugOverlay?.setEnabled(enabled);
+  updatePhysicsDebugToggle();
+}
+
+function updatePhysicsDebugToggle(): void {
+  if (!physicsDebugToggle) return;
+  physicsDebugToggle.setAttribute('aria-pressed', String(physicsDebugEnabled));
+  physicsDebugToggle.textContent = physicsDebugEnabled ? 'Physics debug: on' : 'Physics debug: off';
+}
+
+function readPhysicsDebugFlag(): boolean {
+  return hasUrlFlag('physicsDebug');
+}
+
+function hasUrlFlag(name: string): boolean {
+  const value = new URLSearchParams(window.location.search).get(name);
+  return value === '1' || value === 'true' || value === 'on';
 }
 
 function updateFallback(event: PreviewEvent): void {

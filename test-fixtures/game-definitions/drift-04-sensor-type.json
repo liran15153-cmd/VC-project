@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Drift 04 sensor type",
+    "description": "rigidBody.type='sensor' must coerce to static + colliderOptions.sensor=true."
+  },
+  "engine": { "enable3D": true, "enable2D": false, "enablePhysics": true },
+  "scenes": [
+    {
+      "key": "main",
+      "entities": [
+        {
+          "key": "coin",
+          "transform": { "position": { "x": 0, "y": 1, "z": 0 } },
+          "mesh": { "shape": "sphere", "radius": 0.35 },
+          "rigidBody": {
+            "type": "sensor",
+            "collider": { "shape": "ball", "radius": 0.35 }
+          }
+        }
+      ]
+    }
+  ],
+  "initialScene": "main"
+}

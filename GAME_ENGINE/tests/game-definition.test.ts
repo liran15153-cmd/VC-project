@@ -196,3 +196,82 @@ describe('GameDefinition schema', () => {
     expect(definition.metadata.title).toBe('AI Coin Jumper');
   });
 });
+
+describe('AI drift normalizers (engine mirror)', () => {
+  function warningCodes(input: unknown): string[] {
+    return parseGameDefinitionWithWarnings(input).warnings.map((w) => w.code);
+  }
+
+  it('drift 02: numeric fontSize coerces to "Npx"', () => {
+    const parsed = parseGameDefinitionWithWarnings(fixture('drift-02-fontsize-number.json'));
+    expect(parsed.definition.scenes[0].ui[0].type).toBe('text');
+    const ui = parsed.definition.scenes[0].ui[0] as { style: { fontSize: string } };
+    expect(ui.style.fontSize).toBe('24px');
+    expect(parsed.warnings.map((w) => w.code)).toContain('normalized.styleFontSize');
+  });
+
+  it('drift 03: missing collider is inferred from sibling mesh', () => {
+    const parsed = parseGameDefinitionWithWarnings(fixture('drift-03-missing-collider.json'));
+    const rb = parsed.definition.scenes[0].entities[0].rigidBody!;
+    expect(rb.collider.shape).toBe('cuboid');
+    expect(parsed.warnings.map((w) => w.code)).toContain('normalized.colliderInferred');
+  });
+
+  it('drift 04: sensor type becomes static + colliderOptions.sensor=true', () => {
+    const parsed = parseGameDefinitionWithWarnings(fixture('drift-04-sensor-type.json'));
+    const rb = parsed.definition.scenes[0].entities[0].rigidBody!;
+    expect(rb.type).toBe('static');
+    expect(rb.colliderOptions.sensor).toBe(true);
+    expect(parsed.warnings.map((w) => w.code)).toContain('normalized.rigidBodyTypeSensor');
+  });
+
+  it('drift 05: vec3 arrays normalize to objects', () => {
+    const parsed = parseGameDefinitionWithWarnings(fixture('drift-05-vec3-arrays.json'));
+    const e = parsed.definition.scenes[0].entities[0];
+    expect(e.transform.position).toEqual({ x: 0, y: 1, z: 0 });
+    expect(e.transform.rotation).toEqual({ x: 0, y: 0, z: 0, w: 1 });
+    expect(e.transform.scale).toEqual({ x: 1, y: 1, z: 1 });
+    const mesh = e.mesh as { size: { x: number; y: number; z: number } };
+    expect(mesh.size).toEqual({ x: 1, y: 2, z: 1 });
+    expect(warningCodes(fixture('drift-05-vec3-arrays.json'))).toContain('normalized.vec3FromArray');
+  });
+
+  it('drift 06: unknown scene systems are filtered with a warning per dropped name', () => {
+    const parsed = parseGameDefinitionWithWarnings(fixture('drift-06-unknown-systems.json'));
+    const systems = parsed.definition.scenes[0].systems;
+    expect(systems).not.toContain('input');
+    expect(systems).not.toContain('render');
+    const codes = parsed.warnings.map((w) => w.code);
+    expect(codes).toContain('normalized.sceneSystemUnknown');
+  });
+
+  it('drift 07: cameraTarget=true coerces to an object with Zod defaults filled', () => {
+    const parsed = parseGameDefinitionWithWarnings(fixture('drift-07-cameratarget-bool.json'));
+    const ct = parsed.definition.scenes[0].entities[0].cameraTarget!;
+    expect(typeof ct).toBe('object');
+    expect(ct.lerp).toBe(5);
+    expect(parsed.warnings.map((w) => w.code)).toContain('normalized.cameraTargetBoolean');
+  });
+
+  it('drift 08: sprite.kind is inferred from assetKey as "image"', () => {
+    const parsed = parseGameDefinitionWithWarnings(fixture('drift-08-sprite-missing-kind.json'));
+    const sprite = parsed.definition.scenes[0].entities[0].sprite!;
+    expect(sprite.kind).toBe('image');
+    expect(parsed.warnings.map((w) => w.code)).toContain('normalized.spriteImageKind');
+  });
+
+  it('is idempotent: parsing a normalized definition twice emits no second-pass warnings', () => {
+    const first = parseGameDefinitionWithWarnings(fixture('drift-05-vec3-arrays.json'));
+    expect(first.warnings.length).toBeGreaterThan(0);
+    const second = parseGameDefinitionWithWarnings(first.definition);
+    expect(second.warnings).toHaveLength(0);
+  });
+
+  it('does not regress: original fixtures still emit zero drift warnings', () => {
+    const previouslyValid = ['valid-2d.json', 'valid-3d.json', 'valid-hybrid.json'];
+    for (const name of previouslyValid) {
+      const parsed = parseGameDefinitionWithWarnings(fixture(name));
+      expect(parsed.warnings).toHaveLength(0);
+    }
+  });
+});

@@ -3,6 +3,8 @@ export { CameraSystem } from './CameraSystem';
 export { BehaviorSystem } from './BehaviorSystem';
 export { TweenSystem } from './TweenSystem';
 export { SpawnerSystem } from './SpawnerSystem';
+export { MovingPlatformSystem } from './MovingPlatformSystem';
+export { CharacterControllerSystem } from './CharacterControllerSystem';
 export { UISystem } from './UISystem';
 export { AudioSystem } from './AudioSystem';
 export type { RuntimeSceneApi, CollisionContext } from './RuntimeSceneApi';

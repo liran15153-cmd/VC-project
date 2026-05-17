@@ -1,6 +1,9 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { PhysicsWorld } from './PhysicsWorld';
 import type { Vec3 } from '../core/types';
+import type { NamedCollisionGroups, PhysicsCollisionLayer } from './CollisionLayers';
+import { collisionGroupsForLayer, layerRequiresSensorBehavior, toRapierCollisionGroups } from './CollisionLayers';
+import { getMaterialProperties, type PhysicsMaterialName } from './PhysicsMaterials';
 
 export type BodyType = 'dynamic' | 'static' | 'kinematic';
 
@@ -17,6 +20,10 @@ export interface ColliderOptions {
   friction?: number;
   restitution?: number;
   sensor?: boolean;
+  layer?: PhysicsCollisionLayer;
+  collidesWith?: readonly PhysicsCollisionLayer[];
+  collisionGroups?: NamedCollisionGroups;
+  material?: PhysicsMaterialName;
 }
 
 function bodyDesc(type: BodyType): RAPIER.RigidBodyDesc {
@@ -31,28 +38,40 @@ function bodyDesc(type: BodyType): RAPIER.RigidBodyDesc {
   }
 }
 
-function applyBodyOpts(desc: RAPIER.RigidBodyDesc, opts: BodyOptions): RAPIER.RigidBodyDesc {
+function applyBodyOpts(desc: RAPIER.RigidBodyDesc, opts: BodyOptions, col: ColliderOptions = {}): RAPIER.RigidBodyDesc {
   const p = opts.position ?? { x: 0, y: 0, z: 0 };
   desc.setTranslation(p.x, p.y, p.z);
-  if (opts.linearDamping !== undefined) desc.setLinearDamping(opts.linearDamping);
-  if (opts.angularDamping !== undefined) desc.setAngularDamping(opts.angularDamping);
+  const material = col.material ? getMaterialProperties(col.material) : undefined;
+  const linearDamping = opts.linearDamping ?? material?.linearDamping;
+  const angularDamping = opts.angularDamping ?? material?.angularDamping;
+  if (linearDamping !== undefined) desc.setLinearDamping(linearDamping);
+  if (angularDamping !== undefined) desc.setAngularDamping(angularDamping);
   if (opts.ccd) desc.setCcdEnabled(true);
   return desc;
 }
 
 function applyColliderOpts(desc: RAPIER.ColliderDesc, opts: ColliderOptions): RAPIER.ColliderDesc {
   desc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
-  if (opts.density !== undefined) desc.setDensity(opts.density);
-  if (opts.friction !== undefined) desc.setFriction(opts.friction);
-  if (opts.restitution !== undefined) desc.setRestitution(opts.restitution);
-  if (opts.sensor) desc.setSensor(true);
+  const material = opts.material ? getMaterialProperties(opts.material) : undefined;
+  const density = opts.density ?? material?.density;
+  const friction = opts.friction ?? material?.friction;
+  const restitution = opts.restitution ?? material?.restitution;
+  if (density !== undefined) desc.setDensity(density);
+  if (friction !== undefined) desc.setFriction(friction);
+  if (restitution !== undefined) desc.setRestitution(restitution);
+  if (opts.sensor || (opts.layer && layerRequiresSensorBehavior(opts.layer))) desc.setSensor(true);
+  if (opts.collisionGroups) {
+    desc.setCollisionGroups(toRapierCollisionGroups(opts.collisionGroups));
+  } else if (opts.layer) {
+    desc.setCollisionGroups(collisionGroupsForLayer(opts.layer, opts.collidesWith));
+  }
   return desc;
 }
 
 export const Colliders = {
   cuboid(physics: PhysicsWorld, half: Vec3, body: BodyOptions = {}, col: ColliderOptions = {}) {
     assertPhysicsReady(physics);
-    const rb = physics.world.createRigidBody(applyBodyOpts(bodyDesc(body.type ?? 'dynamic'), body));
+    const rb = physics.world.createRigidBody(applyBodyOpts(bodyDesc(body.type ?? 'dynamic'), body, col));
     const cd = applyColliderOpts(RAPIER.ColliderDesc.cuboid(half.x, half.y, half.z), col);
     const collider = physics.world.createCollider(cd, rb);
     return { body: rb, collider };
@@ -60,7 +79,7 @@ export const Colliders = {
 
   ball(physics: PhysicsWorld, radius: number, body: BodyOptions = {}, col: ColliderOptions = {}) {
     assertPhysicsReady(physics);
-    const rb = physics.world.createRigidBody(applyBodyOpts(bodyDesc(body.type ?? 'dynamic'), body));
+    const rb = physics.world.createRigidBody(applyBodyOpts(bodyDesc(body.type ?? 'dynamic'), body, col));
     const cd = applyColliderOpts(RAPIER.ColliderDesc.ball(radius), col);
     const collider = physics.world.createCollider(cd, rb);
     return { body: rb, collider };
@@ -68,14 +87,14 @@ export const Colliders = {
 
   capsule(physics: PhysicsWorld, halfHeight: number, radius: number, body: BodyOptions = {}, col: ColliderOptions = {}) {
     assertPhysicsReady(physics);
-    const rb = physics.world.createRigidBody(applyBodyOpts(bodyDesc(body.type ?? 'dynamic'), body));
+    const rb = physics.world.createRigidBody(applyBodyOpts(bodyDesc(body.type ?? 'dynamic'), body, col));
     const cd = applyColliderOpts(RAPIER.ColliderDesc.capsule(halfHeight, radius), col);
     const collider = physics.world.createCollider(cd, rb);
     return { body: rb, collider };
   },
 
   ground(physics: PhysicsWorld, halfExtents: Vec3 = { x: 50, y: 0.1, z: 50 }, position: Vec3 = { x: 0, y: 0, z: 0 }) {
-    return Colliders.cuboid(physics, halfExtents, { type: 'static', position }, { friction: 0.9 });
+    return Colliders.cuboid(physics, halfExtents, { type: 'static', position }, { friction: 0.9, layer: 'world' });
   },
 };
 

@@ -1,0 +1,177 @@
+{
+  "version": 1,
+  "name": "LOOMIER debug protocol — Stage 1 seed",
+  "description": "Catalog of the deterministic Stage 1 diagnostics emitted by prototype/backend/src/debugProtocol/validator.js. Inspired by OpenGame's seed-protocol.json format (see third_party/opengame/NOTICE) but all entries are LOOMIER-native and operate on the declarative GameDefinition object, not on Phaser TypeScript source.",
+  "createdAt": "2026-05-16",
+  "kind": "proactive",
+  "entries": [
+    {
+      "code": "SCENE_HAS_CAMERA_NO_TARGET",
+      "severity": "warning",
+      "title": "Scene enables camera system but no entity has cameraTarget",
+      "diagnosis": "The camera system loops over entities that declare cameraTarget. Without one, the camera stays at its default and the player feels static.",
+      "suggestedFix": "Add cameraTarget: {} to the entity the camera should follow (typically the player). Zod defaults fill lerp/offset.",
+      "category": "camera"
+    },
+    {
+      "code": "CAMERA_TARGET_BUT_NO_CAMERA_SYSTEM",
+      "severity": "warning",
+      "title": "Entity declares cameraTarget but its scene omits the camera system",
+      "diagnosis": "cameraTarget metadata is only consumed by the camera system. Without the system, the field is dead config.",
+      "suggestedFix": "Add \"camera\" to scenes[].systems, or remove cameraTarget from the entity.",
+      "category": "camera"
+    },
+    {
+      "code": "ZERO_TRANSFORM_SCALE",
+      "severity": "warning",
+      "title": "Entity transform.scale has a zero axis",
+      "diagnosis": "Three.js / Phaser render objects collapse to invisible when any axis of scale is 0. Schema only checks the value is finite.",
+      "suggestedFix": "Set every axis of transform.scale to a positive number, e.g. { x: 1, y: 1, z: 1 }.",
+      "category": "visibility"
+    },
+    {
+      "code": "ZERO_MODEL_SCALE",
+      "severity": "warning",
+      "title": "Entity model.scale has a zero axis",
+      "diagnosis": "Same as ZERO_TRANSFORM_SCALE but applied to model.scale specifically — the GLTF mesh will not render.",
+      "suggestedFix": "Set every axis of model.scale to a positive number.",
+      "category": "visibility"
+    },
+    {
+      "code": "ZERO_MESH_DIMENSION",
+      "severity": "warning",
+      "title": "Mesh.size has a zero axis",
+      "diagnosis": "The primitive mesh will have zero volume on the collapsed axis and not render visibly.",
+      "suggestedFix": "Set every axis of mesh.size to a positive number.",
+      "category": "visibility"
+    },
+    {
+      "code": "DUPLICATE_ASSET_KEY",
+      "severity": "error",
+      "title": "Two assets declare the same key",
+      "diagnosis": "AssetManager indexes by key; only the first asset with a given key loads. Subsequent declarations are silently shadowed.",
+      "suggestedFix": "Rename or remove the duplicate.",
+      "category": "assets"
+    },
+    {
+      "code": "UNUSED_ASSET",
+      "severity": "warning",
+      "title": "Asset is declared but never referenced",
+      "diagnosis": "Unused assets bloat the bundle and confuse the AI on regeneration (it may re-reference a key it thinks is used).",
+      "suggestedFix": "Either reference the asset from an entity / audio rule, or remove it.",
+      "category": "assets"
+    },
+    {
+      "code": "BEHAVIOR_TARGET_MISSING",
+      "severity": "warning",
+      "title": "Behavior action targets a missing entity",
+      "diagnosis": "setVelocity / setPosition / applyImpulse / destroyEntity / addTag / removeTag actions look up their target by entity.key. If the key does not exist, the action is a no-op.",
+      "suggestedFix": "Add an entity with the target key to a scene or prefab, or fix the typo in the action.",
+      "category": "behaviors"
+    },
+    {
+      "code": "BEHAVIOR_STATE_KEY_MISSING",
+      "severity": "warning",
+      "title": "Behavior action references an undeclared state key",
+      "diagnosis": "setState / incrementState / decrementState write to state.<key>. If the key was never declared at the top level, the runtime may either create-on-write or silently drop the update depending on the action handler.",
+      "suggestedFix": "Add the state key to the top-level state map with an initial value.",
+      "category": "behaviors"
+    },
+    {
+      "code": "BEHAVIOR_ACTION_UNSUPPORTED",
+      "severity": "warning",
+      "title": "Behavior action is not supported by the runtime",
+      "diagnosis": "Unsupported actions are dropped by normalization or ignored by the runtime, leaving the game without the intended rule.",
+      "suggestedFix": "Replace the action with a supported behavior action such as setVelocityX, applyImpulse, incrementState, destroyEntity, or switchScene.",
+      "category": "behaviors"
+    },
+    {
+      "code": "INITIAL_SCENE_NOT_PLAYABLE",
+      "severity": "warning",
+      "title": "Initial scene is not directly playable",
+      "diagnosis": "The preview starts at initialScene. If that scene is a menu or lacks player, ground, or behavior rules, the generated game feels empty.",
+      "suggestedFix": "Point initialScene to the gameplay scene, or make the initial scene contain the playable player, ground collider, and behavior rules.",
+      "category": "playability"
+    },
+    {
+      "code": "PLAYABLE_SCENE_NO_PLAYER",
+      "severity": "warning",
+      "title": "Initial scene has no dynamic player",
+      "diagnosis": "A playable scene needs a player-like dynamic rigid body that input and camera systems can target.",
+      "suggestedFix": "Add an entity keyed or tagged player with a dynamic rigidBody, collider, visual component, and cameraTarget.",
+      "category": "playability"
+    },
+    {
+      "code": "PLAYABLE_SCENE_NO_GROUND_COLLIDER",
+      "severity": "warning",
+      "title": "Initial scene has no static ground collider",
+      "diagnosis": "Without a static ground/platform/world collider, a physics player falls forever or has nothing to stand on.",
+      "suggestedFix": "Add a visible ground, platform, floor, or world entity with rigidBody.type static and an explicit collider.",
+      "category": "playability"
+    },
+    {
+      "code": "PLAYABLE_SCENE_NO_BEHAVIOR_RULES",
+      "severity": "warning",
+      "title": "Initial scene has no supported behavior rules",
+      "diagnosis": "The scene may render but does not have supported runtime actions wired to input, collision, timer, or state triggers.",
+      "suggestedFix": "Add scene.behaviors or top-level behaviors using supported actions. Do not place behaviors on entities.",
+      "category": "playability"
+    },
+    {
+      "code": "TWEEN_TARGET_MISSING",
+      "severity": "warning",
+      "title": "Tween references a missing entity",
+      "diagnosis": "TweenSystem looks up tween.target by entity.key. A missing target means the tween never runs and the visual stays static.",
+      "suggestedFix": "Add the entity with the target key, or fix the tween target.",
+      "category": "tweens"
+    },
+    {
+      "code": "THREE_D_DISABLED_BUT_HAS_3D",
+      "severity": "warning",
+      "title": "engine.enable3D is false but 3D content exists",
+      "diagnosis": "Three.js renderer is skipped when enable3D is false. Any mesh / model / light declared in the definition will be invisible. The schema normalizer auto-corrects this, but if this diagnostic still fires, normalization did not run.",
+      "suggestedFix": "Set engine.enable3D to true, or remove the 3D content.",
+      "category": "engine-flags"
+    },
+    {
+      "code": "TWO_D_DISABLED_BUT_HAS_2D",
+      "severity": "warning",
+      "title": "engine.enable2D is false but 2D content exists",
+      "diagnosis": "Phaser overlay is skipped when enable2D is false. Sprites and UI elements will not render.",
+      "suggestedFix": "Set engine.enable2D to true, or remove sprites and UI.",
+      "category": "engine-flags"
+    },
+    {
+      "code": "PHYSICS_DISABLED_BUT_RIGIDBODY",
+      "severity": "warning",
+      "title": "engine.enablePhysics is false but entities have rigidBody",
+      "diagnosis": "Rapier world is not stepped when enablePhysics is false. Colliders are inert; nothing falls, nothing collides.",
+      "suggestedFix": "Set engine.enablePhysics to true, or remove rigidBody from entities.",
+      "category": "engine-flags"
+    },
+    {
+      "code": "RIGIDBODY_NO_VISUAL",
+      "severity": "warning",
+      "title": "Entity has rigidBody but no mesh, model, or sprite",
+      "diagnosis": "An invisible collider can be intentional (invisible wall, trigger volume) but is often an oversight.",
+      "suggestedFix": "If intentional, ignore. Otherwise add a mesh or model.",
+      "category": "physics"
+    },
+    {
+      "code": "COLLIDER_DEFAULTED_NO_MESH",
+      "severity": "warning",
+      "title": "Collider was auto-defaulted because there was no sibling mesh",
+      "diagnosis": "The schema normalizer inserts a default cuboid collider when rigidBody.collider is missing. Without a sibling mesh to size it from, the default 0.5x0.5x0.5 is rarely the right size.",
+      "suggestedFix": "Declare an explicit collider.halfExtents matching the intended footprint, or add a sibling mesh to drive inference.",
+      "category": "physics"
+    },
+    {
+      "code": "INPUT_BINDINGS_EMPTY_WITH_PLAYER",
+      "severity": "warning",
+      "title": "Player entity exists but inputBindings is empty",
+      "diagnosis": "Without input bindings the player cannot move. Schema normalization usually injects defaults, but only if the player is detected via the key/tag heuristic.",
+      "suggestedFix": "Populate inputBindings with at least moveLeft / moveRight / jump.",
+      "category": "input"
+    }
+  ]
+}

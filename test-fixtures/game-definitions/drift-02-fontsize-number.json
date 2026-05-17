@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Drift 02 fontSize number",
+    "description": "Number fontSize must be coerced to '<n>px'."
+  },
+  "engine": { "enable3D": false, "enable2D": true, "enablePhysics": false },
+  "scenes": [
+    {
+      "key": "main",
+      "entities": [],
+      "ui": [
+        { "type": "text", "text": "Score: {score}", "x": 16, "y": 16, "style": { "fontSize": 24 } }
+      ]
+    }
+  ],
+  "initialScene": "main"
+}

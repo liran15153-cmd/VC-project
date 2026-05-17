@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Drift 08 sprite missing kind",
+    "description": "sprite.kind missing must be inferred from assetKey ('image')."
+  },
+  "engine": { "enable3D": false, "enable2D": true, "enablePhysics": false },
+  "assets": [
+    { "key": "hud-icon", "type": "image", "url": "/assets/library/fixtures/hud-icon.png" }
+  ],
+  "scenes": [
+    {
+      "key": "main",
+      "entities": [
+        {
+          "key": "hud",
+          "sprite": { "assetKey": "hud-icon", "x": 16, "y": 16 }
+        }
+      ]
+    }
+  ],
+  "initialScene": "main"
+}

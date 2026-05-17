@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Drift 07 cameraTarget boolean",
+    "description": "entities[].cameraTarget=true must coerce to {} (Zod defaults fill lerp/offset)."
+  },
+  "engine": { "enable3D": true, "enable2D": false, "enablePhysics": true },
+  "scenes": [
+    {
+      "key": "main",
+      "entities": [
+        {
+          "key": "player",
+          "transform": { "position": { "x": 0, "y": 1, "z": 0 } },
+          "mesh": { "shape": "box", "size": { "x": 1, "y": 1, "z": 1 } },
+          "rigidBody": {
+            "type": "dynamic",
+            "collider": { "shape": "cuboid", "halfExtents": { "x": 0.5, "y": 0.5, "z": 0.5 } }
+          },
+          "cameraTarget": true
+        }
+      ]
+    }
+  ],
+  "initialScene": "main"
+}

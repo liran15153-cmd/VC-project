@@ -1,0 +1,1142 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Coin Maze Patrol",
+    "description": "Top-down single-screen maze where you collect coins and avoid patrolling spike enemies. Implemented with simple Rapier physics and hybrid visuals; no tilemap editor or advanced spike animation, so spikes are static colliders and enemies use basic point-to-point patrol.",
+    "genre": "unknown"
+  },
+  "engine": {
+    "enable3D": true,
+    "enable2D": true,
+    "enablePhysics": true,
+    "gravity": {
+      "x": 0,
+      "y": -9.81,
+      "z": 0
+    }
+  },
+  "state": {},
+  "inputBindings": {},
+  "assets": [
+    {
+      "key": "kenney-new-platformer-pack-1-1-sprites-backgrounds-default-background-color-trees-png",
+      "type": "image",
+      "url": "/assets/library/kenney-new-platformer-pack-1-1/sprites/backgrounds/default/background-color-trees.png"
+    },
+    {
+      "key": "kenney-new-platformer-pack-1-1-sprites-backgrounds-default-background-solid-sand-png",
+      "type": "image",
+      "url": "/assets/library/kenney-new-platformer-pack-1-1/sprites/backgrounds/default/background-solid-sand.png"
+    },
+    {
+      "key": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-blue-png",
+      "type": "image",
+      "url": "/assets/library/kenney-new-platformer-pack-1-1/sprites/tiles/default/block-blue.png"
+    },
+    {
+      "key": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-red-png",
+      "type": "image",
+      "url": "/assets/library/kenney-new-platformer-pack-1-1/sprites/tiles/default/block-red.png"
+    },
+    {
+      "key": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-coin-active-png",
+      "type": "image",
+      "url": "/assets/library/kenney-new-platformer-pack-1-1/sprites/tiles/default/block-coin-active.png"
+    },
+    {
+      "key": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-spikes-png",
+      "type": "image",
+      "url": "/assets/library/kenney-new-platformer-pack-1-1/sprites/tiles/default/block-spikes.png"
+    },
+    {
+      "key": "kenney-new-platformer-pack-1-1-sprites-characters-default-character-beige-walk-a-png",
+      "type": "image",
+      "url": "/assets/library/kenney-new-platformer-pack-1-1/sprites/characters/default/character-beige-walk-a.png"
+    },
+    {
+      "key": "kenney-new-platformer-pack-1-1-sprites-tiles-default-hud-character-percent-png",
+      "type": "image",
+      "url": "/assets/library/kenney-new-platformer-pack-1-1/sprites/tiles/default/hud-character-percent.png"
+    },
+    {
+      "key": "kenney-new-platformer-pack-1-1-sprites-enemies-default-barnacle-attack-rest-png",
+      "type": "image",
+      "url": "/assets/library/kenney-new-platformer-pack-1-1/sprites/enemies/default/barnacle-attack-rest.png"
+    },
+    {
+      "key": "kenney-new-platformer-pack-1-1-sounds-sfx-coin-ogg",
+      "type": "audio",
+      "url": "/assets/library/kenney-new-platformer-pack-1-1/sounds/sfx-coin.ogg"
+    }
+  ],
+  "prefabs": {
+    "coinPrefab": {
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 0.25,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 0.6,
+          "y": 0.6,
+          "z": 0.6
+        }
+      },
+      "mesh": {
+        "shape": "box",
+        "size": {
+          "x": 0.5,
+          "y": 0.5,
+          "z": 0.5
+        },
+        "color": "#2ed9c3",
+        "metalness": 0,
+        "roughness": 0.6
+      },
+      "rigidBody": {
+        "type": "static",
+        "collider": {
+          "shape": "ball",
+          "radius": 0.3
+        },
+        "ccd": false,
+        "colliderOptions": {
+          "sensor": true
+        }
+      },
+      "sprite": {
+        "kind": "image",
+        "assetKey": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-coin-active-png",
+        "x": 0,
+        "y": 0,
+        "alpha": 1,
+        "depth": 0,
+        "origin": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "followIn3D": false
+      },
+      "tags": [
+        "coin"
+      ],
+      "data": {}
+    },
+    "spikePrefab": {
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 0.25,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 0.5,
+          "z": 1
+        }
+      },
+      "mesh": {
+        "shape": "box",
+        "size": {
+          "x": 1,
+          "y": 0.5,
+          "z": 1
+        },
+        "color": "#006b8f",
+        "metalness": 0,
+        "roughness": 0.6
+      },
+      "rigidBody": {
+        "type": "static",
+        "collider": {
+          "shape": "cuboid",
+          "halfExtents": {
+            "x": 0.45,
+            "y": 0.25,
+            "z": 0.45
+          }
+        },
+        "ccd": false,
+        "colliderOptions": {}
+      },
+      "sprite": {
+        "kind": "image",
+        "assetKey": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-spikes-png",
+        "x": 0,
+        "y": 0,
+        "alpha": 1,
+        "depth": 0,
+        "origin": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "followIn3D": false
+      },
+      "tags": [
+        "spike",
+        "hazard"
+      ],
+      "data": {}
+    },
+    "enemyPatrolPrefab": {
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 0.4,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 0.8,
+          "y": 0.8,
+          "z": 0.8
+        }
+      },
+      "mesh": {
+        "shape": "box",
+        "size": {
+          "x": 0.7,
+          "y": 0.7,
+          "z": 0.7
+        },
+        "color": "#00a3b9",
+        "metalness": 0,
+        "roughness": 0.6
+      },
+      "rigidBody": {
+        "type": "kinematic",
+        "collider": {
+          "shape": "ball",
+          "radius": 0.35
+        },
+        "ccd": false,
+        "colliderOptions": {}
+      },
+      "sprite": {
+        "kind": "image",
+        "assetKey": "kenney-new-platformer-pack-1-1-sprites-enemies-default-barnacle-attack-rest-png",
+        "x": 0,
+        "y": 0,
+        "alpha": 1,
+        "depth": 0,
+        "origin": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "followIn3D": false
+      },
+      "tags": [
+        "enemy",
+        "hazard"
+      ],
+      "data": {}
+    }
+  },
+  "behaviors": [],
+  "animations": [],
+  "ui": [],
+  "audio": [],
+  "scenes": [
+    {
+      "key": "main",
+      "systems": [
+        "physicsSync",
+        "camera",
+        "behavior",
+        "tween",
+        "spawner",
+        "ui",
+        "audio"
+      ],
+      "lights": [],
+      "entities": [
+        {
+          "key": "backgroundPlane",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": -0.51,
+              "z": 0
+            },
+            "rotation": {
+              "x": -0.707,
+              "y": 0,
+              "z": 0,
+              "w": 0.707
+            },
+            "scale": {
+              "x": 20,
+              "y": 20,
+              "z": 20
+            }
+          },
+          "mesh": {
+            "shape": "plane",
+            "size": {
+              "x": 20,
+              "y": 20
+            },
+            "color": "#003b4f",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "static",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": {
+                "x": 10,
+                "y": 0.1,
+                "z": 10
+              }
+            },
+            "ccd": false,
+            "colliderOptions": {}
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "kenney-new-platformer-pack-1-1-sprites-backgrounds-default-background-solid-sand-png",
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "depth": 0,
+            "origin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "background"
+          ],
+          "data": {}
+        },
+        {
+          "key": "mazeOuterNorth",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 0.5,
+              "z": -5
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 10,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": {
+              "x": 10,
+              "y": 1,
+              "z": 1
+            },
+            "color": "#004d63",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "static",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": {
+                "x": 5,
+                "y": 0.5,
+                "z": 0.5
+              }
+            },
+            "ccd": false,
+            "colliderOptions": {}
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-blue-png",
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "depth": 0,
+            "origin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "wall"
+          ],
+          "data": {}
+        },
+        {
+          "key": "mazeOuterSouth",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 0.5,
+              "z": 5
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 10,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": {
+              "x": 10,
+              "y": 1,
+              "z": 1
+            },
+            "color": "#004d63",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "static",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": {
+                "x": 5,
+                "y": 0.5,
+                "z": 0.5
+              }
+            },
+            "ccd": false,
+            "colliderOptions": {}
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-blue-png",
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "depth": 0,
+            "origin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "wall"
+          ],
+          "data": {}
+        },
+        {
+          "key": "mazeOuterWest",
+          "transform": {
+            "position": {
+              "x": -5,
+              "y": 0.5,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 10
+            }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 10
+            },
+            "color": "#004d63",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "static",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": {
+                "x": 0.5,
+                "y": 0.5,
+                "z": 5
+              }
+            },
+            "ccd": false,
+            "colliderOptions": {}
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-blue-png",
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "depth": 0,
+            "origin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "wall"
+          ],
+          "data": {}
+        },
+        {
+          "key": "mazeOuterEast",
+          "transform": {
+            "position": {
+              "x": 5,
+              "y": 0.5,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 10
+            }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 10
+            },
+            "color": "#004d63",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "static",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": {
+                "x": 0.5,
+                "y": 0.5,
+                "z": 5
+              }
+            },
+            "ccd": false,
+            "colliderOptions": {}
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-blue-png",
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "depth": 0,
+            "origin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "wall"
+          ],
+          "data": {}
+        },
+        {
+          "key": "mazeInnerWallHorizontal",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 0.5,
+              "z": -1.5
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 6,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": {
+              "x": 6,
+              "y": 1,
+              "z": 1
+            },
+            "color": "#005b73",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "static",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": {
+                "x": 3,
+                "y": 0.5,
+                "z": 0.5
+              }
+            },
+            "ccd": false,
+            "colliderOptions": {}
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-red-png",
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "depth": 0,
+            "origin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "wall"
+          ],
+          "data": {}
+        },
+        {
+          "key": "mazeInnerWallVertical",
+          "transform": {
+            "position": {
+              "x": 1.5,
+              "y": 0.5,
+              "z": 1.5
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 5
+            }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 5
+            },
+            "color": "#005b73",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "static",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": {
+                "x": 0.5,
+                "y": 0.5,
+                "z": 2.5
+              }
+            },
+            "ccd": false,
+            "colliderOptions": {}
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "kenney-new-platformer-pack-1-1-sprites-tiles-default-block-red-png",
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "depth": 0,
+            "origin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "wall"
+          ],
+          "data": {}
+        },
+        {
+          "key": "player",
+          "transform": {
+            "position": {
+              "x": -4,
+              "y": 0.5,
+              "z": 4
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 0.7,
+              "y": 0.7,
+              "z": 0.7
+            }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": {
+              "x": 0.7,
+              "y": 0.7,
+              "z": 0.7
+            },
+            "color": "#00c0d4",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "dynamic",
+            "collider": {
+              "shape": "ball",
+              "radius": 0.35
+            },
+            "ccd": false,
+            "colliderOptions": {}
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "kenney-new-platformer-pack-1-1-sprites-characters-default-character-beige-walk-a-png",
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "depth": 0,
+            "origin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "followIn3D": false
+          },
+          "cameraTarget": {
+            "lerp": 0.15,
+            "offset": {
+              "x": 0,
+              "y": 10,
+              "z": 0
+            }
+          },
+          "tags": [
+            "player"
+          ],
+          "data": {}
+        },
+        {
+          "key": "coin1",
+          "transform": {
+            "position": {
+              "x": -3.5,
+              "y": 0.25,
+              "z": -3.5
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0.5,
+              "z": 0,
+              "w": 0.866
+            },
+            "scale": {
+              "x": 0.6,
+              "y": 0.6,
+              "z": 0.6
+            }
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "coin2",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 0.25,
+              "z": -0.5
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0.3,
+              "z": 0,
+              "w": 0.954
+            },
+            "scale": {
+              "x": 0.6,
+              "y": 0.6,
+              "z": 0.6
+            }
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "coin3",
+          "transform": {
+            "position": {
+              "x": 3.5,
+              "y": 0.25,
+              "z": 3.5
+            },
+            "rotation": {
+              "x": 0,
+              "y": -0.4,
+              "z": 0,
+              "w": 0.916
+            },
+            "scale": {
+              "x": 0.6,
+              "y": 0.6,
+              "z": 0.6
+            }
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "coin4",
+          "transform": {
+            "position": {
+              "x": -1.5,
+              "y": 0.25,
+              "z": 1.5
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0.1,
+              "z": 0,
+              "w": 0.995
+            },
+            "scale": {
+              "x": 0.6,
+              "y": 0.6,
+              "z": 0.6
+            }
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "coin5",
+          "transform": {
+            "position": {
+              "x": 2.5,
+              "y": 0.25,
+              "z": -3
+            },
+            "rotation": {
+              "x": 0,
+              "y": -0.2,
+              "z": 0,
+              "w": 0.98
+            },
+            "scale": {
+              "x": 0.6,
+              "y": 0.6,
+              "z": 0.6
+            }
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "spike1",
+          "transform": {
+            "position": {
+              "x": -1,
+              "y": 0.25,
+              "z": -2.5
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            }
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "spike2",
+          "transform": {
+            "position": {
+              "x": 2.5,
+              "y": 0.25,
+              "z": 0.5
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            }
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "enemyPatrol1",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 0.4,
+              "z": 2
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 0.8,
+              "y": 0.8,
+              "z": 0.8
+            }
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "coinCounterText",
+          "transform": {
+            "position": {
+              "x": -7.5,
+              "y": 6,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "sprite": {
+            "kind": "text",
+            "text": "Coins: 0/5",
+            "x": 0,
+            "y": 0,
+            "style": {
+              "fontFamily": "Verdana",
+              "fontSize": "24px",
+              "color": "#ffffff"
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "ui",
+            "coinCounter"
+          ],
+          "data": {}
+        },
+        {
+          "key": "statusText",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 7.5,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "sprite": {
+            "kind": "text",
+            "text": "Collect all coins. Avoid spikes and patrols.",
+            "x": 0,
+            "y": 0,
+            "style": {
+              "fontFamily": "Verdana",
+              "fontSize": "24px",
+              "color": "#ffffff"
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "ui",
+            "status"
+          ],
+          "data": {}
+        },
+        {
+          "key": "restartHintText",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": -7,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "sprite": {
+            "kind": "text",
+            "text": "Press R or tap Restart to try again.",
+            "x": 0,
+            "y": 0,
+            "style": {
+              "fontFamily": "Verdana",
+              "fontSize": "24px",
+              "color": "#ffffff"
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "ui",
+            "hint"
+          ],
+          "data": {}
+        },
+        {
+          "key": "restartButton",
+          "transform": {
+            "position": {
+              "x": 7.5,
+              "y": -6.5,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "sprite": {
+            "kind": "text",
+            "text": "[Restart]",
+            "x": 0,
+            "y": 0,
+            "style": {
+              "fontFamily": "Verdana",
+              "fontSize": "24px",
+              "color": "#ffffff"
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "ui",
+            "button",
+            "restartButton"
+          ],
+          "data": {}
+        },
+        {
+          "key": "gameLogic",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "tags": [
+            "manager",
+            "gameLogic"
+          ],
+          "data": {}
+        }
+      ],
+      "behaviors": [],
+      "animations": [],
+      "spawners": [],
+      "ui": [],
+      "audio": []
+    }
+  ],
+  "initialScene": "main"
+}

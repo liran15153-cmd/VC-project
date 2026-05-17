@@ -1,0 +1,719 @@
+{
+  "timestamp": "2026-05-16T22:14:11.747Z",
+  "total": 10,
+  "okCount": 10,
+  "rows": [
+    {
+      "label": "Simple 2D platformer",
+      "expected": "platformer_2d",
+      "got": "platformer_2d",
+      "matches": true,
+      "dimension": "2D",
+      "archetype": "platformer_2d",
+      "archetypeProfile": {
+        "id": "platformer_2d",
+        "dimension": "2D",
+        "dimensionLock": "2D",
+        "perspective": "side-view",
+        "gravity": "down-y",
+        "camera": {
+          "type": "side-scroll",
+          "defaults": "follow player on X, soft Y lerp"
+        },
+        "physics": {
+          "mode": "arcade",
+          "notes": "gravity-down, jump impulse, ground colliders"
+        },
+        "defaultSystems": [
+          "physicsSync",
+          "camera",
+          "behavior",
+          "ui"
+        ],
+        "defaultControls": {
+          "primary": "Keyboard arrows/WASD plus Space to jump",
+          "mobile": "On-screen left/right pad and a jump button",
+          "bindings": {
+            "moveLeft": [
+              "ArrowLeft",
+              "KeyA"
+            ],
+            "moveRight": [
+              "ArrowRight",
+              "KeyD"
+            ],
+            "jump": [
+              "Space",
+              "ArrowUp",
+              "KeyW"
+            ]
+          }
+        },
+        "commonEntities": [
+          "player",
+          "platform",
+          "ground",
+          "enemy",
+          "collectible",
+          "hazard",
+          "goal"
+        ],
+        "commonAssetRoles": [
+          "player",
+          "platform",
+          "enemy",
+          "collectible",
+          "ui"
+        ],
+        "commonFailureModes": [
+          "camera with no target",
+          "platforms with no collider",
+          "jump too weak",
+          "no death/reset rule"
+        ],
+        "briefGuidance": "Side-scrolling platformer with gravity-down physics. Keep platforms reachable from the player's jump arc and include at least one win condition."
+      },
+      "confidenceScore": 0.7,
+      "reasoningShort": "Keyword \"platformer\" matched archetype \"platformer_2d\".",
+      "source": "heuristic",
+      "dimensionSource": "user",
+      "warnings": []
+    },
+    {
+      "label": "Simple 3D platformer",
+      "expected": "platformer_3d",
+      "got": "platformer_3d",
+      "matches": true,
+      "dimension": "3D",
+      "archetype": "platformer_3d",
+      "archetypeProfile": {
+        "id": "platformer_3d",
+        "dimension": "3D",
+        "dimensionLock": "3D",
+        "perspective": "side-view-3d",
+        "gravity": "down-y",
+        "camera": {
+          "type": "follow-3d",
+          "defaults": "lerp behind/above the player on a side-on axis"
+        },
+        "physics": {
+          "mode": "rigid",
+          "notes": "gravity-down Y; rigid bodies for player and platforms"
+        },
+        "defaultSystems": [
+          "physicsSync",
+          "camera",
+          "behavior",
+          "ui"
+        ],
+        "defaultControls": {
+          "primary": "WASD or arrows to move; Space to jump",
+          "mobile": "Virtual pad to move; jump button",
+          "bindings": {
+            "moveLeft": [
+              "ArrowLeft",
+              "KeyA"
+            ],
+            "moveRight": [
+              "ArrowRight",
+              "KeyD"
+            ],
+            "jump": [
+              "Space",
+              "ArrowUp",
+              "KeyW"
+            ]
+          }
+        },
+        "commonEntities": [
+          "player",
+          "platform",
+          "ground",
+          "enemy",
+          "collectible",
+          "goal"
+        ],
+        "commonAssetRoles": [
+          "player",
+          "platform",
+          "enemy",
+          "collectible"
+        ],
+        "commonFailureModes": [
+          "camera with no target",
+          "platforms without colliders",
+          "mismatched gravity sign"
+        ],
+        "briefGuidance": "3D platformer with side-on camera and gravity-down physics. Player jumps between 3D platforms toward a clear goal."
+      },
+      "confidenceScore": 0.55,
+      "reasoningShort": "Keyword \"platformer\" matched archetype \"platformer_2d\".",
+      "source": "heuristic",
+      "dimensionSource": "user",
+      "warnings": [
+        "keyword suggested \"platformer_2d\" but dimension was locked to 3D; projected to \"platformer_3d\""
+      ]
+    },
+    {
+      "label": "Top-down shooter",
+      "expected": "top_down_2d",
+      "got": "top_down_2d",
+      "matches": true,
+      "dimension": "2D",
+      "archetype": "top_down_2d",
+      "archetypeProfile": {
+        "id": "top_down_2d",
+        "dimension": "2D",
+        "dimensionLock": "2D",
+        "perspective": "top-down",
+        "gravity": "none",
+        "camera": {
+          "type": "top-down",
+          "defaults": "follow player from above, no gravity offset"
+        },
+        "physics": {
+          "mode": "arcade",
+          "notes": "no vertical gravity; 2D movement on the XY plane"
+        },
+        "defaultSystems": [
+          "physicsSync",
+          "camera",
+          "behavior",
+          "ui"
+        ],
+        "defaultControls": {
+          "primary": "WASD or arrow keys for 8-way movement; optional aim/attack key",
+          "mobile": "Virtual joystick for movement; tap or button for action",
+          "bindings": {
+            "moveLeft": [
+              "ArrowLeft",
+              "KeyA"
+            ],
+            "moveRight": [
+              "ArrowRight",
+              "KeyD"
+            ],
+            "moveUp": [
+              "ArrowUp",
+              "KeyW"
+            ],
+            "moveDown": [
+              "ArrowDown",
+              "KeyS"
+            ]
+          }
+        },
+        "commonEntities": [
+          "player",
+          "enemy",
+          "wall",
+          "collectible",
+          "projectile"
+        ],
+        "commonAssetRoles": [
+          "player",
+          "enemy",
+          "environment",
+          "collectible",
+          "ui"
+        ],
+        "commonFailureModes": [
+          "applying gravity by accident",
+          "walls without colliders",
+          "enemies that ignore player tag"
+        ],
+        "briefGuidance": "Top-down 2D world with no gravity. Movement is 8-way. Walls and rooms define the playfield."
+      },
+      "confidenceScore": 0.7,
+      "reasoningShort": "Keyword \"top-down\" matched archetype \"top_down_2d\".",
+      "source": "heuristic",
+      "dimensionSource": "user",
+      "warnings": []
+    },
+    {
+      "label": "Hybrid 2.5D runner",
+      "expected": "hybrid_2_5d",
+      "got": "hybrid_2_5d",
+      "matches": true,
+      "dimension": "hybrid",
+      "archetype": "hybrid_2_5d",
+      "archetypeProfile": {
+        "id": "hybrid_2_5d",
+        "dimension": "hybrid",
+        "dimensionLock": "hybrid",
+        "perspective": "side-view",
+        "gravity": "down-y",
+        "camera": {
+          "type": "side-scroll-3d",
+          "defaults": "side-on with depth; 3D meshes on a 2D plane"
+        },
+        "physics": {
+          "mode": "rigid",
+          "notes": "2D gameplay on the XY plane; 3D visuals; gravity-down Y"
+        },
+        "defaultSystems": [
+          "physicsSync",
+          "camera",
+          "behavior",
+          "ui"
+        ],
+        "defaultControls": {
+          "primary": "A/D or arrows to move; Space to jump",
+          "mobile": "Virtual left/right and a jump button",
+          "bindings": {
+            "moveLeft": [
+              "ArrowLeft",
+              "KeyA"
+            ],
+            "moveRight": [
+              "ArrowRight",
+              "KeyD"
+            ],
+            "jump": [
+              "Space",
+              "ArrowUp",
+              "KeyW"
+            ]
+          }
+        },
+        "commonEntities": [
+          "player",
+          "platform",
+          "enemy",
+          "collectible"
+        ],
+        "commonAssetRoles": [
+          "player",
+          "platform",
+          "enemy",
+          "collectible",
+          "ui"
+        ],
+        "commonFailureModes": [
+          "full 3D free-look",
+          "depth movement when only XY is intended"
+        ],
+        "briefGuidance": "2.5D hybrid: 2D side-scrolling gameplay rendered with 3D meshes. Movement is constrained to the side-on plane."
+      },
+      "confidenceScore": 0.4,
+      "reasoningShort": "No keyword match; defaulted to \"hybrid_2_5d\" for dimension hybrid.",
+      "source": "heuristic",
+      "dimensionSource": "user",
+      "warnings": [
+        "no keyword match — using dimension default"
+      ]
+    },
+    {
+      "label": "Small puzzle game",
+      "expected": "grid_logic",
+      "got": "grid_logic",
+      "matches": true,
+      "dimension": "2D",
+      "archetype": "grid_logic",
+      "archetypeProfile": {
+        "id": "grid_logic",
+        "dimension": "2D",
+        "dimensionLock": "any",
+        "perspective": "screen",
+        "gravity": "none",
+        "camera": {
+          "type": "static",
+          "defaults": "fixed view of the whole board"
+        },
+        "physics": {
+          "mode": "none",
+          "notes": "no physics; cells/tiles updated by discrete rules"
+        },
+        "defaultSystems": [
+          "behavior",
+          "ui"
+        ],
+        "defaultControls": {
+          "primary": "Click or arrow keys to select/move a piece",
+          "mobile": "Tap and drag to select/move a piece",
+          "bindings": {
+            "select": [
+              "Enter",
+              "Space"
+            ],
+            "moveLeft": [
+              "ArrowLeft"
+            ],
+            "moveRight": [
+              "ArrowRight"
+            ],
+            "moveUp": [
+              "ArrowUp"
+            ],
+            "moveDown": [
+              "ArrowDown"
+            ]
+          }
+        },
+        "commonEntities": [
+          "cell",
+          "piece",
+          "board",
+          "ui"
+        ],
+        "commonAssetRoles": [
+          "piece",
+          "board",
+          "ui"
+        ],
+        "commonFailureModes": [
+          "adding gravity",
+          "using continuous physics for discrete pieces",
+          "inventing animation systems"
+        ],
+        "briefGuidance": "Discrete-grid logic puzzle. No physics or gravity; the board updates by turn or input. Win condition is a board state."
+      },
+      "confidenceScore": 0.7,
+      "reasoningShort": "Keyword \"grid-puzzle\" matched archetype \"grid_logic\".",
+      "source": "heuristic",
+      "dimensionSource": "user",
+      "warnings": []
+    },
+    {
+      "label": "Tower defense with waves",
+      "expected": "tower_defense",
+      "got": "tower_defense",
+      "matches": true,
+      "dimension": "2D",
+      "archetype": "tower_defense",
+      "archetypeProfile": {
+        "id": "tower_defense",
+        "dimension": "2D",
+        "dimensionLock": "any",
+        "perspective": "top-down",
+        "gravity": "none",
+        "camera": {
+          "type": "static-overview",
+          "defaults": "fixed map view, optional pan/zoom"
+        },
+        "physics": {
+          "mode": "arcade",
+          "notes": "wave spawners and path-following; light or no collision"
+        },
+        "defaultSystems": [
+          "spawner",
+          "behavior",
+          "ui"
+        ],
+        "defaultControls": {
+          "primary": "Click to place a tower; hotkeys for tower types and wave start",
+          "mobile": "Tap to place a tower; tap UI button to start a wave",
+          "bindings": {
+            "startWave": [
+              "Space"
+            ],
+            "placeTower": [
+              "Enter"
+            ]
+          }
+        },
+        "commonEntities": [
+          "tower",
+          "enemy",
+          "path",
+          "spawner",
+          "base",
+          "ui"
+        ],
+        "commonAssetRoles": [
+          "tower",
+          "enemy",
+          "environment",
+          "ui"
+        ],
+        "commonFailureModes": [
+          "no wave/spawner",
+          "no path for enemies",
+          "towers without targeting behavior"
+        ],
+        "briefGuidance": "Tower defense with discrete waves and a fixed enemy path. Player places towers to stop waves before they reach the base."
+      },
+      "confidenceScore": 0.7,
+      "reasoningShort": "Keyword \"tower-defense\" matched archetype \"tower_defense\".",
+      "source": "heuristic",
+      "dimensionSource": "user",
+      "warnings": []
+    },
+    {
+      "label": "First person maze shooter",
+      "expected": "first_person_3d",
+      "got": "first_person_3d",
+      "matches": true,
+      "dimension": "3D",
+      "archetype": "first_person_3d",
+      "archetypeProfile": {
+        "id": "first_person_3d",
+        "dimension": "3D",
+        "dimensionLock": "3D",
+        "perspective": "first-person",
+        "gravity": "down-y",
+        "camera": {
+          "type": "first-person",
+          "defaults": "camera attached to the player's head"
+        },
+        "physics": {
+          "mode": "rigid",
+          "notes": "gravity-down Y; capsule body for player; mouse-look optional"
+        },
+        "defaultSystems": [
+          "physicsSync",
+          "camera",
+          "behavior",
+          "ui"
+        ],
+        "defaultControls": {
+          "primary": "WASD to move; mouse to look; Space to jump; click to act",
+          "mobile": "Two virtual sticks (move + look); button to act",
+          "bindings": {
+            "moveLeft": [
+              "KeyA"
+            ],
+            "moveRight": [
+              "KeyD"
+            ],
+            "moveUp": [
+              "KeyW"
+            ],
+            "moveDown": [
+              "KeyS"
+            ],
+            "jump": [
+              "Space"
+            ]
+          }
+        },
+        "commonEntities": [
+          "player",
+          "environment",
+          "enemy",
+          "pickup"
+        ],
+        "commonAssetRoles": [
+          "environment",
+          "enemy",
+          "pickup",
+          "ui"
+        ],
+        "commonFailureModes": [
+          "third-person camera by accident",
+          "no player collider",
+          "no clear goal"
+        ],
+        "briefGuidance": "First-person 3D game. The camera is mounted on the player. Player navigates a 3D world toward a clear objective."
+      },
+      "confidenceScore": 0.7,
+      "reasoningShort": "Keyword \"first-person\" matched archetype \"first_person_3d\".",
+      "source": "heuristic",
+      "dimensionSource": "user",
+      "warnings": []
+    },
+    {
+      "label": "3D vehicle racing game",
+      "expected": "vehicle_3d",
+      "got": "vehicle_3d",
+      "matches": true,
+      "dimension": "3D",
+      "archetype": "vehicle_3d",
+      "archetypeProfile": {
+        "id": "vehicle_3d",
+        "dimension": "3D",
+        "dimensionLock": "3D",
+        "perspective": "third-person",
+        "gravity": "down-y",
+        "camera": {
+          "type": "chase-cam",
+          "defaults": "behind-and-above the vehicle, lerp with speed"
+        },
+        "physics": {
+          "mode": "rigid",
+          "notes": "gravity-down; rigid body for vehicle; acceleration/steering forces"
+        },
+        "defaultSystems": [
+          "physicsSync",
+          "camera",
+          "behavior",
+          "ui"
+        ],
+        "defaultControls": {
+          "primary": "W/S accelerate-brake; A/D steer; Space optional handbrake",
+          "mobile": "Touch buttons or tilt for steer; tap for accelerate",
+          "bindings": {
+            "accelerate": [
+              "ArrowUp",
+              "KeyW"
+            ],
+            "brake": [
+              "ArrowDown",
+              "KeyS"
+            ],
+            "steerLeft": [
+              "ArrowLeft",
+              "KeyA"
+            ],
+            "steerRight": [
+              "ArrowRight",
+              "KeyD"
+            ]
+          }
+        },
+        "commonEntities": [
+          "vehicle",
+          "track",
+          "obstacle",
+          "checkpoint"
+        ],
+        "commonAssetRoles": [
+          "vehicle",
+          "environment",
+          "obstacle",
+          "ui"
+        ],
+        "commonFailureModes": [
+          "no track/path",
+          "using jump bindings",
+          "camera not following vehicle"
+        ],
+        "briefGuidance": "3D vehicle game. Player drives along a track or in an arena. Steering and acceleration replace walking controls."
+      },
+      "confidenceScore": 0.7,
+      "reasoningShort": "Keyword \"vehicle\" matched archetype \"vehicle_3d\".",
+      "source": "heuristic",
+      "dimensionSource": "user",
+      "warnings": []
+    },
+    {
+      "label": "Mobile 2.5D endless runner",
+      "expected": "hybrid_2_5d",
+      "got": "hybrid_2_5d",
+      "matches": true,
+      "dimension": "hybrid",
+      "archetype": "hybrid_2_5d",
+      "archetypeProfile": {
+        "id": "hybrid_2_5d",
+        "dimension": "hybrid",
+        "dimensionLock": "hybrid",
+        "perspective": "side-view",
+        "gravity": "down-y",
+        "camera": {
+          "type": "side-scroll-3d",
+          "defaults": "side-on with depth; 3D meshes on a 2D plane"
+        },
+        "physics": {
+          "mode": "rigid",
+          "notes": "2D gameplay on the XY plane; 3D visuals; gravity-down Y"
+        },
+        "defaultSystems": [
+          "physicsSync",
+          "camera",
+          "behavior",
+          "ui"
+        ],
+        "defaultControls": {
+          "primary": "A/D or arrows to move; Space to jump",
+          "mobile": "Virtual left/right and a jump button",
+          "bindings": {
+            "moveLeft": [
+              "ArrowLeft",
+              "KeyA"
+            ],
+            "moveRight": [
+              "ArrowRight",
+              "KeyD"
+            ],
+            "jump": [
+              "Space",
+              "ArrowUp",
+              "KeyW"
+            ]
+          }
+        },
+        "commonEntities": [
+          "player",
+          "platform",
+          "enemy",
+          "collectible"
+        ],
+        "commonAssetRoles": [
+          "player",
+          "platform",
+          "enemy",
+          "collectible",
+          "ui"
+        ],
+        "commonFailureModes": [
+          "full 3D free-look",
+          "depth movement when only XY is intended"
+        ],
+        "briefGuidance": "2.5D hybrid: 2D side-scrolling gameplay rendered with 3D meshes. Movement is constrained to the side-on plane."
+      },
+      "confidenceScore": 0.7,
+      "reasoningShort": "Keyword \"2.5D\" matched archetype \"hybrid_2_5d\".",
+      "source": "heuristic",
+      "dimensionSource": "user",
+      "warnings": []
+    },
+    {
+      "label": "UI-heavy quiz game",
+      "expected": "ui_heavy",
+      "got": "ui_heavy",
+      "matches": true,
+      "dimension": "2D",
+      "archetype": "ui_heavy",
+      "archetypeProfile": {
+        "id": "ui_heavy",
+        "dimension": "2D",
+        "dimensionLock": "any",
+        "perspective": "screen",
+        "gravity": "none",
+        "camera": {
+          "type": "static",
+          "defaults": "no world camera; UI fills the screen"
+        },
+        "physics": {
+          "mode": "none",
+          "notes": "no world physics; interaction is via UI elements"
+        },
+        "defaultSystems": [
+          "ui",
+          "behavior"
+        ],
+        "defaultControls": {
+          "primary": "Mouse/click to interact with UI elements",
+          "mobile": "Tap UI elements",
+          "bindings": {
+            "confirm": [
+              "Enter",
+              "Space"
+            ]
+          }
+        },
+        "commonEntities": [
+          "button",
+          "panel",
+          "text",
+          "choice"
+        ],
+        "commonAssetRoles": [
+          "ui",
+          "icon"
+        ],
+        "commonFailureModes": [
+          "adding a physics player",
+          "using a side-scroll camera",
+          "requiring an unused jump binding"
+        ],
+        "briefGuidance": "UI-driven game. No physics player. Progress is by reading text and pressing UI buttons."
+      },
+      "confidenceScore": 0.7,
+      "reasoningShort": "Keyword \"ui-heavy\" matched archetype \"ui_heavy\".",
+      "source": "heuristic",
+      "dimensionSource": "user",
+      "warnings": []
+    }
+  ]
+}

@@ -863,6 +863,7 @@ function publicResolvedAsset(asset, requirement, confidenceScore, reason, scoreB
     subcategory: asset.subcategory,
     tags: asset.tags || [],
     engineCompatibility: asset.engineCompatibility || [],
+    dimension: asset.dimension || asset.assetDimension,
     publicPath: asset.publicPath,
     source: asset.source,
     pack: asset.pack || asset.packId,

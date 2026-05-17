@@ -70,14 +70,26 @@ function normalizeGameDefinitionCandidateWithWarnings(input) {
   const warnings = [];
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return { candidate: input, warnings };
 
+  // Shape coercions must run first — schema rejects object-vs-array mismatches outright.
+  coerceCollectionShapes(candidate, warnings);
+
+  normalizeMetadata(candidate, warnings);
   normalizeInitialScene(candidate, warnings);
   normalizeAssetColors(candidate, warnings);
+
+  filterPlaceholderAssets(candidate, warnings);
+  filterInvalidSpawners(candidate, warnings);
 
   const scenes = Array.isArray(candidate.scenes) ? candidate.scenes : [];
   for (const [index, scene] of scenes.entries()) normalizeScene(scene, warnings, `scenes.${index}`);
   normalizeUiList(candidate.ui, warnings, 'ui');
+  normalizeAudioRules(candidate.audio, warnings, 'audio');
   normalizeEntityMap(candidate.prefabs, warnings, 'prefabs');
+  normalizeBehaviors(candidate, warnings);
   normalizeEngineFlags(candidate, warnings);
+
+  injectDefaultInputBindings(candidate, warnings);
+  injectDefaultPlayerBehaviors(candidate, warnings);
 
   return { candidate, warnings };
 }
@@ -157,12 +169,69 @@ const modelDefinitionSchema = z.object({
   receiveShadow: z.boolean().default(false)
 });
 
+const physicsMaterialNameSchema = z.enum(['default', 'ice', 'metal', 'rubber', 'wood', 'flesh']);
+
 const colliderOptionsSchema = z.object({
   density: z.number().positive().optional(),
   friction: z.number().min(0).optional(),
   restitution: z.number().min(0).optional(),
-  sensor: z.boolean().optional()
+  sensor: z.boolean().optional(),
+  material: physicsMaterialNameSchema.optional()
 });
+
+const movingPlatformDefinitionSchema = z.union([
+  z.object({
+    kind: z.literal('path'),
+    waypoints: z.array(vec3Schema).min(2),
+    speed: z.number().positive().default(1),
+    mode: z.enum(['loop', 'pingpong', 'once']).default('loop')
+  }),
+  z.object({
+    kind: z.literal('velocity'),
+    velocity: vec3Schema
+  })
+]);
+
+const characterControllerPresetSchema = z.enum(['platformer2d', 'runner2d', 'simple3d', 'topdown']);
+
+const characterControllerDefinitionSchema = z.object({
+  preset: characterControllerPresetSchema
+});
+
+const triggerActionListSchema = z.array(
+  z
+    .object({
+      type: z.string().optional(),
+      action: z.string().optional(),
+      target: z.unknown().optional(),
+      key: z.string().optional(),
+      stateKey: z.string().optional(),
+      value: z.unknown().optional(),
+      amount: z.number().finite().optional(),
+      asset: z.string().optional(),
+      sound: z.string().optional(),
+      event: z.string().optional(),
+      scene: z.string().optional(),
+      prefab: z.string().optional(),
+      tags: z.array(z.string().min(1)).optional(),
+      tag: z.string().optional(),
+      volume: z.number().min(0).max(1).optional(),
+      payload: z.unknown().optional(),
+      position: vec3Schema.optional()
+    })
+    .passthrough()
+);
+
+const triggerVolumeDefinitionSchema = z
+  .object({
+    onEnter: triggerActionListSchema.optional(),
+    onExit: triggerActionListSchema.optional(),
+    onStay: triggerActionListSchema.optional()
+  })
+  .refine(
+    (definition) => Boolean(definition.onEnter?.length || definition.onExit?.length || definition.onStay?.length),
+    'A trigger must declare at least one of onEnter, onExit, or onStay.'
+  );
 
 const colliderDefinitionSchema = z.discriminatedUnion('shape', [
   z.object({
@@ -234,6 +303,9 @@ const entityDefinitionSchema = z.object({
   rigidBody: rigidBodyDefinitionSchema.optional(),
   sprite: spriteDefinitionSchema.optional(),
   cameraTarget: cameraTargetDefinitionSchema.optional(),
+  characterController: characterControllerDefinitionSchema.optional(),
+  movingPlatform: movingPlatformDefinitionSchema.optional(),
+  trigger: triggerVolumeDefinitionSchema.optional(),
   tags: z.array(z.string().min(1)).default([]),
   data: z.record(z.string(), z.unknown()).default({})
 });
@@ -499,8 +571,10 @@ function normalizeInitialScene(definition, warnings) {
 
 function normalizeScene(scene, warnings, path) {
   if (!scene || typeof scene !== 'object') return;
+  normalizeSceneSystems(scene, warnings, path);
   normalizeEntityList(scene.entities, warnings, `${path}.entities`);
   normalizeUiList(scene.ui, warnings, `${path}.ui`);
+  normalizeAudioRules(scene.audio, warnings, `${path}.audio`);
 }
 
 function normalizeEntityMap(entitiesByKey, warnings, path) {
@@ -515,13 +589,23 @@ function normalizeEntityList(entities, warnings, path) {
 
 function normalizeEntity(entity, warnings, path) {
   if (!entity || typeof entity !== 'object') return;
+  normalizeCameraTarget(entity, warnings, path);
   normalizeTransform(entity.transform, warnings, `${path}.transform`);
+  normalizeMesh(entity.mesh, warnings, `${path}.mesh`);
   normalizeRigidBody(entity.rigidBody, entity.mesh, warnings, `${path}.rigidBody`);
   normalizeSprite(entity.sprite, warnings, `${path}.sprite`);
 }
 
+function normalizeMesh(mesh, warnings, path) {
+  if (!mesh || typeof mesh !== 'object') return;
+  normalizeVec3Field(mesh, 'size', false, warnings, path);
+}
+
 function normalizeTransform(transform, warnings, path) {
   if (!transform || typeof transform !== 'object') return;
+  normalizeVec3Field(transform, 'position', false, warnings, path);
+  normalizeVec3Field(transform, 'scale', false, warnings, path);
+  normalizeVec3Field(transform, 'rotation', true, warnings, path);
   const rotation = transform.rotation;
   if (rotation && typeof rotation === 'object' && !Array.isArray(rotation) && rotation.w === undefined) {
     const before = clonePlainObject(rotation);
@@ -532,8 +616,14 @@ function normalizeTransform(transform, warnings, path) {
 
 function normalizeRigidBody(rigidBody, mesh, warnings, path) {
   if (!rigidBody || typeof rigidBody !== 'object') return;
-  const collider = rigidBody.collider;
-  if (!collider || typeof collider !== 'object') return;
+  normalizeRigidBodyType(rigidBody, warnings, path);
+
+  let collider = rigidBody.collider;
+  if (!collider || typeof collider !== 'object') {
+    collider = inferColliderFromMesh(mesh);
+    rigidBody.collider = collider;
+    addNormalizationWarning(warnings, 'normalized.colliderInferred', `${path}.collider`, undefined, clonePlainObject(collider), 'rigidBody.collider was missing and inferred from sibling mesh.');
+  }
 
   if (collider.shape === 'box') {
     const before = clonePlainObject(collider);
@@ -547,6 +637,29 @@ function normalizeRigidBody(rigidBody, mesh, warnings, path) {
     const before = clonePlainObject(collider);
     collider.shape = 'ball';
     addNormalizationWarning(warnings, 'normalized.colliderSphereToBall', `${path}.collider.shape`, before, clonePlainObject(collider), 'Collider shape sphere was normalized to ball.');
+  }
+
+  normalizeVec3Field(collider, 'halfExtents', false, warnings, `${path}.collider`);
+  normalizeMaterialConflict(rigidBody, warnings, path);
+}
+
+function normalizeMaterialConflict(rigidBody, warnings, path) {
+  const options = rigidBody.colliderOptions;
+  if (!options || typeof options !== 'object') return;
+  if (typeof options.material !== 'string') return;
+  const material = options.material;
+  for (const key of ['friction', 'restitution', 'density']) {
+    if (!Object.prototype.hasOwnProperty.call(options, key)) continue;
+    const before = options[key];
+    delete options[key];
+    addNormalizationWarning(
+      warnings,
+      'normalized.colliderMaterialConflict',
+      `${path}.colliderOptions.${key}`,
+      before,
+      undefined,
+      `colliderOptions.${key} was dropped because colliderOptions.material="${material}" was already specified.`
+    );
   }
 }
 
@@ -570,19 +683,66 @@ function normalizeSprite(sprite, warnings, path) {
     sprite.kind = 'text';
     addNormalizationWarning(warnings, 'normalized.spriteTextKind', `${path}.kind`, undefined, 'text', 'Text sprite kind was inferred.');
   }
-  if (sprite.style) normalizeStyleColor(sprite.style, warnings, `${path}.style`);
+  if (!sprite.kind && typeof sprite.assetKey === 'string') {
+    sprite.kind = 'image';
+    addNormalizationWarning(warnings, 'normalized.spriteImageKind', `${path}.kind`, undefined, 'image', 'Image sprite kind was inferred from assetKey.');
+  }
+  if (sprite.style) {
+    normalizeStyleColor(sprite.style, warnings, `${path}.style`);
+    normalizeStyleFontSize(sprite.style, warnings, `${path}.style`);
+  }
 }
 
 function normalizeUiList(ui, warnings, path) {
   if (!Array.isArray(ui)) return;
-  for (const [index, item] of ui.entries()) {
+  for (let index = ui.length - 1; index >= 0; index -= 1) {
+    const item = ui[index];
     if (!item || typeof item !== 'object') continue;
     if (!item.type && typeof item.text === 'string') {
       item.type = 'text';
       addNormalizationWarning(warnings, 'normalized.uiTextType', `${path}.${index}.type`, undefined, 'text', 'Text UI type was inferred.');
     }
-    if (item.style) normalizeStyleColor(item.style, warnings, `${path}.${index}.style`);
+    if (item.type && item.type !== 'text' && item.type !== 'bar') {
+      if (typeof item.text === 'string' || typeof item.label === 'string' || typeof item.title === 'string' || typeof item.content === 'string') {
+        const before = item.type;
+        item.text = String(item.text ?? item.label ?? item.title ?? item.content);
+        item.type = 'text';
+        addNormalizationWarning(warnings, 'normalized.uiUnsupportedTypeToText', `${path}.${index}.type`, before, 'text', 'Unsupported UI item type was normalized to text.');
+      } else if (item.value !== undefined) {
+        const before = item.type;
+        item.value = String(item.value);
+        item.type = 'bar';
+        if (item.max === undefined) item.max = 100;
+        addNormalizationWarning(warnings, 'normalized.uiUnsupportedTypeToBar', `${path}.${index}.type`, before, 'bar', 'Unsupported UI item type was normalized to bar because it had a value field.');
+      } else {
+        const before = clonePlainObject(item);
+        ui.splice(index, 1);
+        addNormalizationWarning(warnings, 'normalized.uiUnsupportedTypeDropped', `${path}.${index}`, before, null, 'Unsupported UI item was dropped instead of failing the whole GameDefinition.');
+        continue;
+      }
+    }
+    if (item.style) {
+      normalizeStyleColor(item.style, warnings, `${path}.${index}.style`);
+      normalizeStyleFontSize(item.style, warnings, `${path}.${index}.style`);
+    }
   }
+}
+
+function normalizeAudioRules(rules, warnings, path) {
+  if (!Array.isArray(rules)) return;
+  for (let index = rules.length - 1; index >= 0; index -= 1) {
+    const rule = rules[index];
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule) || !isValidLooseTrigger(rule.trigger)) {
+      const before = clonePlainObject(rule);
+      rules.splice(index, 1);
+      addNormalizationWarning(warnings, 'normalized.audioRuleInvalidDropped', `${path}.${index}`, before, null, 'Audio rule with an invalid trigger was dropped.');
+    }
+  }
+}
+
+function isValidLooseTrigger(trigger) {
+  if (typeof trigger === 'string') return trigger.trim().length > 0;
+  return !!trigger && typeof trigger === 'object' && !Array.isArray(trigger);
 }
 
 function normalizeAssetColors(value, warnings, path = '') {
@@ -628,6 +788,187 @@ function normalizeColorValue(value) {
     return Number.parseInt(trimmed.slice(2), 16);
   }
   return trimmed;
+}
+
+// ─── AI-drift normalizers (lenient + log) ─────────────────────────────────
+
+const VALID_RIGID_BODY_TYPES = new Set(['dynamic', 'static', 'kinematic']);
+const VALID_SCENE_SYSTEMS = new Set(['physicsSync', 'camera', 'behavior', 'tween', 'spawner', 'ui', 'audio']);
+
+/** Coerce {position|scale|halfExtents|...} from [x,y,z] arrays to {x,y,z} objects. */
+function normalizeVec3Field(record, key, expectW, warnings, path) {
+  if (!record || typeof record !== 'object') return;
+  const value = record[key];
+  if (!Array.isArray(value)) return;
+  if (value.length < 3) return;
+  const [x, y, z, w] = value;
+  if (![x, y, z].every((n) => typeof n === 'number' && Number.isFinite(n))) return;
+  const before = clonePlainObject(value);
+  const next = expectW
+    ? { x, y, z, w: typeof w === 'number' && Number.isFinite(w) ? w : 1 }
+    : { x, y, z };
+  record[key] = next;
+  addNormalizationWarning(
+    warnings,
+    'normalized.vec3FromArray',
+    `${path}.${key}`,
+    before,
+    clonePlainObject(next),
+    expectW ? 'Quaternion array was normalized to {x,y,z,w} object.' : 'Vec3 array was normalized to {x,y,z} object.'
+  );
+}
+
+/** Coerce sensor/trigger/etc rigidBody types to schema-valid enum + sensor flag. */
+function normalizeRigidBodyType(rigidBody, warnings, path) {
+  if (!rigidBody || typeof rigidBody !== 'object') return;
+  const before = rigidBody.type;
+  if (typeof before !== 'string') return;
+  if (VALID_RIGID_BODY_TYPES.has(before)) return;
+  if (/^(sensor|trigger|ghost|area)$/i.test(before)) {
+    rigidBody.type = 'static';
+    rigidBody.colliderOptions = { ...(rigidBody.colliderOptions || {}), sensor: true };
+    addNormalizationWarning(
+      warnings,
+      'normalized.rigidBodyTypeSensor',
+      `${path}.type`,
+      before,
+      'static (colliderOptions.sensor=true)',
+      'Sensor/trigger rigidBody type was normalized to static + colliderOptions.sensor=true.'
+    );
+    return;
+  }
+  rigidBody.type = 'dynamic';
+  addNormalizationWarning(
+    warnings,
+    'normalized.rigidBodyTypeUnknown',
+    `${path}.type`,
+    before,
+    'dynamic',
+    `Unknown rigidBody type "${before}" was normalized to dynamic.`
+  );
+}
+
+/** Infer a sensible collider from a sibling mesh when collider is missing. */
+function inferColliderFromMesh(mesh) {
+  if (!mesh || typeof mesh !== 'object') {
+    return { shape: 'cuboid', halfExtents: { x: 0.5, y: 0.5, z: 0.5 } };
+  }
+  switch (mesh.shape) {
+    case 'box':
+      return { shape: 'cuboid', halfExtents: halfExtentsFromSize(mesh.size) };
+    case 'sphere':
+      return { shape: 'ball', radius: finitePositive(mesh.radius) ? mesh.radius : 0.5 };
+    case 'cylinder':
+    case 'cone': {
+      const height = finitePositive(mesh.height) ? mesh.height : 1;
+      const radius = finitePositive(mesh.radiusTop) ? mesh.radiusTop : (finitePositive(mesh.radius) ? mesh.radius : 0.25);
+      return { shape: 'capsule', halfHeight: height / 2, radius };
+    }
+    case 'plane': {
+      const sx = finitePositive(mesh.size?.x) ? mesh.size.x : 1;
+      const sy = finitePositive(mesh.size?.y) ? mesh.size.y : 1;
+      return { shape: 'cuboid', halfExtents: { x: sx / 2, y: 0.05, z: sy / 2 } };
+    }
+    default:
+      return { shape: 'cuboid', halfExtents: { x: 0.5, y: 0.5, z: 0.5 } };
+  }
+}
+
+/** Filter scenes[].systems[] to known names; default to ['physicsSync','camera'] if empty. */
+function normalizeSceneSystems(scene, warnings, path) {
+  if (!scene || !Array.isArray(scene.systems)) return;
+  const before = [...scene.systems];
+  const seen = new Set();
+  const filtered = [];
+  const dropped = new Set();
+  for (const entry of before) {
+    if (typeof entry !== 'string') { dropped.add(String(entry)); continue; }
+    if (!VALID_SCENE_SYSTEMS.has(entry)) { dropped.add(entry); continue; }
+    if (seen.has(entry)) continue;
+    seen.add(entry);
+    filtered.push(entry);
+  }
+  if (dropped.size === 0 && filtered.length === before.length) return;
+  scene.systems = filtered;
+  for (const name of dropped) {
+    addNormalizationWarning(
+      warnings,
+      'normalized.sceneSystemUnknown',
+      `${path}.systems`,
+      name,
+      null,
+      `Unknown scene system "${name}" was removed.`
+    );
+  }
+  if (scene.systems.length === 0) {
+    scene.systems = ['physicsSync', 'camera'];
+    addNormalizationWarning(
+      warnings,
+      'normalized.sceneSystemsDefaulted',
+      `${path}.systems`,
+      before,
+      ['physicsSync', 'camera'],
+      'scenes[].systems was empty after filtering; defaulted to ["physicsSync","camera"].'
+    );
+  }
+}
+
+/** Coerce cameraTarget boolean shorthand to an object (or remove on false). */
+function normalizeCameraTarget(entity, warnings, path) {
+  if (!entity || typeof entity !== 'object') return;
+  if (typeof entity.cameraTarget !== 'boolean') return;
+  const before = entity.cameraTarget;
+  if (before) {
+    entity.cameraTarget = {};
+    addNormalizationWarning(
+      warnings,
+      'normalized.cameraTargetBoolean',
+      `${path}.cameraTarget`,
+      true,
+      {},
+      'cameraTarget=true was normalized to {} (Zod defaults fill lerp/offset).'
+    );
+  } else {
+    delete entity.cameraTarget;
+    addNormalizationWarning(
+      warnings,
+      'normalized.cameraTargetBoolean',
+      `${path}.cameraTarget`,
+      false,
+      undefined,
+      'cameraTarget=false was removed (no follow camera).'
+    );
+  }
+}
+
+/** Coerce numeric fontSize (24) or bare-number string ("24") to CSS length ("24px"). */
+function normalizeStyleFontSize(style, warnings, path) {
+  if (!style || typeof style !== 'object') return;
+  if (!Object.prototype.hasOwnProperty.call(style, 'fontSize')) return;
+  const before = style.fontSize;
+  if (typeof before === 'number' && Number.isFinite(before)) {
+    style.fontSize = `${before}px`;
+    addNormalizationWarning(
+      warnings,
+      'normalized.styleFontSize',
+      `${path}.fontSize`,
+      before,
+      style.fontSize,
+      'Numeric fontSize was normalized to "<n>px".'
+    );
+    return;
+  }
+  if (typeof before === 'string' && /^\s*[0-9]+(\.[0-9]+)?\s*$/.test(before)) {
+    style.fontSize = `${before.trim()}px`;
+    addNormalizationWarning(
+      warnings,
+      'normalized.styleFontSize',
+      `${path}.fontSize`,
+      before,
+      style.fontSize,
+      'Bare numeric fontSize string was normalized to "<n>px".'
+    );
+  }
 }
 
 function normalizeEngineFlags(definition, warnings) {
@@ -755,6 +1096,393 @@ function validateAssetReference(assetsByKey, key, allowedTypes, label) {
   if (!asset) throw new Error(`${label} references missing asset "${key}".`);
   if (!allowedTypes.includes(asset.type)) {
     throw new Error(`${label} references asset "${key}" with type "${asset.type}" but expected ${allowedTypes.join(', ')}.`);
+  }
+}
+
+// ─── Metadata default (AI-drift: missing title) ─────────────────────────────
+
+/**
+ * Ensure metadata.title exists. AI occasionally returns metadata without title
+ * (or as gameTitle from the old schema). The schema requires a non-empty string.
+ */
+function normalizeMetadata(candidate, warnings) {
+  if (!candidate.metadata || typeof candidate.metadata !== 'object') {
+    candidate.metadata = { title: 'Untitled Game' };
+    addNormalizationWarning(warnings, 'normalized.metadataMissing', 'metadata', undefined, clonePlainObject(candidate.metadata), 'metadata block was missing; populated with a default title.');
+    return;
+  }
+  const md = candidate.metadata;
+  if (typeof md.title === 'string' && md.title.trim()) return;
+  // Try common aliases the AI uses by mistake.
+  for (const alias of ['gameTitle', 'name', 'title']) {
+    const v = md[alias];
+    if (typeof v === 'string' && v.trim()) {
+      const before = md.title;
+      md.title = v.trim();
+      addNormalizationWarning(warnings, 'normalized.metadataTitleAlias', 'metadata.title', before, md.title, `metadata.title was missing; copied from metadata.${alias}.`);
+      return;
+    }
+  }
+  const before = md.title;
+  md.title = 'Untitled Game';
+  addNormalizationWarning(warnings, 'normalized.metadataTitleDefaulted', 'metadata.title', before, md.title, 'metadata.title was missing or empty; defaulted to "Untitled Game".');
+}
+
+// ─── Invalid spawner filter (AI-drift: spawner without prefab) ──────────────
+
+/**
+ * Drop spawners that reference no prefab (schema requires a non-empty string).
+ * Better to lose the spawner than fail the entire game.
+ */
+function filterInvalidSpawners(candidate, warnings) {
+  if (!Array.isArray(candidate.scenes)) return;
+  for (const [i, scene] of candidate.scenes.entries()) {
+    if (!scene || !Array.isArray(scene.spawners)) continue;
+    const before = scene.spawners.length;
+    scene.spawners = scene.spawners.filter((s, j) => {
+      if (s && typeof s === 'object' && typeof s.prefab === 'string' && s.prefab.trim()) return true;
+      addNormalizationWarning(
+        warnings,
+        'normalized.spawnerDropped',
+        `scenes.${i}.spawners.${j}`,
+        clonePlainObject(s),
+        null,
+        `Spawner at scenes.${i}.spawners.${j} had no prefab reference; dropped.`
+      );
+      return false;
+    });
+  }
+}
+
+// ─── Shape coercions (AI-drift: wrong collection shape) ─────────────────────
+
+/**
+ * The AI occasionally returns top-level collections in the wrong shape:
+ *   assets   {key: {...}}  →  [{key, ...}]
+ *   prefabs  [{key, ...}]  →  {key: {...}}
+ *   scenes   {key: {...}}  →  [{key, ...}]
+ * Zod can't recover from these because the schema discriminates by type.
+ * We coerce before validation runs.
+ */
+function coerceCollectionShapes(candidate, warnings) {
+  if (candidate.assets && typeof candidate.assets === 'object' && !Array.isArray(candidate.assets)) {
+    const before = clonePlainObject(candidate.assets);
+    const arr = [];
+    for (const [key, value] of Object.entries(candidate.assets)) {
+      if (!value || typeof value !== 'object') continue;
+      const entry = (value.key && typeof value.key === 'string') ? value : { key, ...value };
+      arr.push(entry);
+    }
+    candidate.assets = arr;
+    addNormalizationWarning(warnings, 'normalized.assetsObjectToArray', 'assets', before, clonePlainObject(arr), 'assets was returned as an object map; coerced to array with key copied from map keys.');
+  }
+
+  if (Array.isArray(candidate.prefabs)) {
+    const before = clonePlainObject(candidate.prefabs);
+    const rec = {};
+    for (const item of candidate.prefabs) {
+      if (!item || typeof item !== 'object') continue;
+      const key = typeof item.key === 'string' && item.key ? item.key : null;
+      if (!key) continue;
+      const { key: _drop, ...rest } = item;
+      rec[key] = rest;
+    }
+    candidate.prefabs = rec;
+    addNormalizationWarning(warnings, 'normalized.prefabsArrayToRecord', 'prefabs', before, clonePlainObject(rec), 'prefabs was returned as an array; coerced to record keyed by item.key.');
+  }
+
+  if (candidate.scenes && typeof candidate.scenes === 'object' && !Array.isArray(candidate.scenes)) {
+    const before = clonePlainObject(candidate.scenes);
+    const arr = [];
+    for (const [key, value] of Object.entries(candidate.scenes)) {
+      if (!value || typeof value !== 'object') continue;
+      const entry = (value.key && typeof value.key === 'string') ? value : { key, ...value };
+      arr.push(entry);
+    }
+    candidate.scenes = arr;
+    addNormalizationWarning(warnings, 'normalized.scenesObjectToArray', 'scenes', before, clonePlainObject(arr), 'scenes was returned as an object map; coerced to array with key copied from map keys.');
+  }
+}
+
+// ─── Placeholder asset URL filter ───────────────────────────────────────────
+
+/**
+ * Reject placeholder data URLs like `data:,uifont` that pass Zod (any data:
+ * URL is allowed) but fail at runtime in the asset loader. Drop the asset and
+ * all references to it (entity model/sprite, audio rules, playSound actions).
+ */
+function isPlaceholderAssetUrl(url) {
+  if (typeof url !== 'string') return true;
+  const trimmed = url.trim();
+  if (!trimmed) return true;
+
+  // Placeholder data: URLs like "data:,uifont" — header is empty and payload is a
+  // bare label. Real data URLs have a mime type ("data:image/png;base64,...") or
+  // at least a sizable base64 payload.
+  if (trimmed.startsWith('data:')) {
+    const commaIndex = trimmed.indexOf(',');
+    if (commaIndex < 0) return true;
+    const header = trimmed.slice(5, commaIndex);
+    const payload = trimmed.slice(commaIndex + 1);
+    if (header.length === 0 && payload.length < 32) return true;
+    if (header.length === 0 && !/^[A-Za-z0-9+/]/.test(payload)) return true;
+    return false;
+  }
+
+  // Common AI placeholder patterns: bare filenames ("robotSprite.png"), or
+  // relative `assets/...` paths that won't resolve under the preview iframe's
+  // "/engine-preview/..." base.
+  if (!trimmed.includes('/')) return true;
+  if (/^assets\//i.test(trimmed)) return true;
+  if (/^public\//i.test(trimmed)) return true;
+
+  // Anything else — pass through to schema validation (which is the security
+  // layer that rejects evil.example.com etc.).
+  return false;
+}
+
+function filterPlaceholderAssets(candidate, warnings) {
+  if (!Array.isArray(candidate.assets)) return;
+  const droppedKeys = new Set();
+  const kept = [];
+  for (const asset of candidate.assets) {
+    if (!asset || typeof asset !== 'object') continue;
+    if (isPlaceholderAssetUrl(asset.url)) {
+      droppedKeys.add(asset.key);
+      addNormalizationWarning(
+        warnings,
+        'normalized.assetPlaceholderDropped',
+        `assets[${asset.key}]`,
+        asset.url,
+        null,
+        `Asset "${asset.key}" had a placeholder URL "${asset.url}" and would fail to load; dropped along with its references.`
+      );
+      continue;
+    }
+    kept.push(asset);
+  }
+  if (kept.length === candidate.assets.length) return;
+  candidate.assets = kept;
+  if (droppedKeys.size === 0) return;
+
+  // Strip references on entities (both inline scene entities and prefabs).
+  const stripEntityRefs = (entity, path) => {
+    if (!entity || typeof entity !== 'object') return;
+    if (entity.model && droppedKeys.has(entity.model.assetKey)) {
+      const before = clonePlainObject(entity.model);
+      delete entity.model;
+      addNormalizationWarning(warnings, 'normalized.assetReferenceDropped', `${path}.model`, before, null, `Removed model referencing dropped asset.`);
+    }
+    if (entity.sprite?.kind === 'image' && droppedKeys.has(entity.sprite.assetKey)) {
+      const before = clonePlainObject(entity.sprite);
+      entity.sprite = { kind: 'text', text: '', x: entity.sprite.x ?? 0, y: entity.sprite.y ?? 0 };
+      addNormalizationWarning(warnings, 'normalized.assetReferenceDropped', `${path}.sprite`, before, clonePlainObject(entity.sprite), `Replaced sprite referencing dropped asset with empty text fallback.`);
+    }
+  };
+
+  // Strip audio rules and playSound actions that reference dropped assets.
+  const stripAudioRules = (rules, path) => {
+    if (!Array.isArray(rules)) return rules;
+    return rules.filter((rule, i) => {
+      const key = rule?.asset ?? rule?.sound;
+      if (!key || !droppedKeys.has(key)) return true;
+      addNormalizationWarning(warnings, 'normalized.assetReferenceDropped', `${path}.${i}`, clonePlainObject(rule), null, `Dropped audio rule referencing dropped asset "${key}".`);
+      return false;
+    });
+  };
+  const stripBehaviors = (behaviors, path) => {
+    if (!Array.isArray(behaviors)) return;
+    for (const [i, b] of behaviors.entries()) {
+      if (!b || !Array.isArray(b.actions)) continue;
+      b.actions = b.actions.filter((a, j) => {
+        const type = a?.type ?? a?.action;
+        if (type !== 'playSound') return true;
+        const key = a.asset ?? a.sound;
+        if (!key || !droppedKeys.has(key)) return true;
+        addNormalizationWarning(warnings, 'normalized.assetReferenceDropped', `${path}.${i}.actions.${j}`, clonePlainObject(a), null, `Dropped playSound action referencing dropped asset "${key}".`);
+        return false;
+      });
+    }
+  };
+
+  for (const [i, scene] of (candidate.scenes || []).entries()) {
+    if (!scene) continue;
+    for (const [j, e] of (scene.entities || []).entries()) stripEntityRefs(e, `scenes.${i}.entities.${j}`);
+    scene.audio = stripAudioRules(scene.audio, `scenes.${i}.audio`);
+    stripBehaviors(scene.behaviors, `scenes.${i}.behaviors`);
+  }
+  if (candidate.prefabs && typeof candidate.prefabs === 'object' && !Array.isArray(candidate.prefabs)) {
+    for (const [k, p] of Object.entries(candidate.prefabs)) stripEntityRefs(p, `prefabs.${k}`);
+  }
+  candidate.audio = stripAudioRules(candidate.audio, 'audio');
+  stripBehaviors(candidate.behaviors, 'behaviors');
+}
+
+// ─── Default inputBindings injection ────────────────────────────────────────
+
+/**
+ * If inputBindings is empty but the definition has a player entity with a
+ * dynamic rigidBody, inject standard platformer keys. Otherwise the schema
+ * passes but the game is silent — player can't move.
+ */
+function injectDefaultInputBindings(candidate, warnings) {
+  const ib = candidate.inputBindings;
+  const isEmpty = !ib || (typeof ib === 'object' && !Array.isArray(ib) && Object.keys(ib).length === 0);
+  if (!isEmpty) return;
+
+  const hasControlledPlayer = (candidate.scenes || []).some((scene) =>
+    (scene?.entities || []).some((e) => {
+      if (!e || typeof e !== 'object') return false;
+      const keyIsPlayer = typeof e.key === 'string' && /player/i.test(e.key);
+      const tagIsPlayer = Array.isArray(e.tags) && e.tags.some((t) => /player/i.test(String(t)));
+      const isDynamic = e.rigidBody?.type === 'dynamic' || (e.rigidBody && !e.rigidBody.type);
+      return (keyIsPlayer || tagIsPlayer) && isDynamic;
+    })
+  );
+  if (!hasControlledPlayer) return;
+
+  const defaults = {
+    moveLeft: ['ArrowLeft', 'KeyA'],
+    moveRight: ['ArrowRight', 'KeyD'],
+    jump: ['Space', 'ArrowUp', 'KeyW'],
+    action: ['KeyE', 'Enter']
+  };
+  candidate.inputBindings = defaults;
+  addNormalizationWarning(warnings, 'normalized.inputBindingsDefaulted', 'inputBindings', {}, clonePlainObject(defaults), 'inputBindings was empty but a controlled player exists; injected default platformer keys.');
+}
+
+// ─── Default player behaviors (when AI omits movement glue) ────────────────
+
+/**
+ * When the AI gives us a controllable player but no behaviors wiring the input
+ * bindings to physics, inject the standard platformer movement behaviors so
+ * the game is actually playable. Skip if the AI already wrote movement glue.
+ */
+function injectDefaultPlayerBehaviors(candidate, warnings) {
+  if (!Array.isArray(candidate.scenes) || candidate.scenes.length === 0) return;
+
+  const ib = candidate.inputBindings;
+  if (!ib || typeof ib !== 'object') return;
+  const hasStandardMovementBindings = ib.moveLeft && ib.moveRight && ib.jump;
+  if (!hasStandardMovementBindings) return;
+
+  const scene = candidate.scenes[0];
+  const player = (scene.entities || []).find((e) => {
+    if (!e || typeof e !== 'object') return false;
+    const keyIsPlayer = typeof e.key === 'string' && /player/i.test(e.key);
+    const tagIsPlayer = Array.isArray(e.tags) && e.tags.some((t) => /player/i.test(String(t)));
+    const isDynamic = e.rigidBody?.type === 'dynamic';
+    return (keyIsPlayer || tagIsPlayer) && isDynamic;
+  });
+  if (!player) return;
+
+  const allBehaviors = [...(candidate.behaviors || []), ...(scene.behaviors || [])];
+  const hasInputWiring = allBehaviors.some((b) => {
+    const trigger = b?.trigger;
+    if (!trigger) return false;
+    const type = typeof trigger === 'string' ? trigger : trigger.type;
+    if (!/^(input|key)/i.test(String(type))) return false;
+    const input = typeof trigger === 'object' ? (trigger.input || trigger.key) : null;
+    return input ? /move|jump|left|right/i.test(String(input)) : true;
+  });
+  if (hasInputWiring) return;
+
+  if (!Array.isArray(scene.behaviors)) scene.behaviors = [];
+  const playerKey = player.key;
+  const injected = [
+    { id: '_default_moveLeft', trigger: { type: 'inputDown', input: 'moveLeft' }, actions: [{ type: 'setVelocityX', target: playerKey, value: -5 }] },
+    { id: '_default_moveRight', trigger: { type: 'inputDown', input: 'moveRight' }, actions: [{ type: 'setVelocityX', target: playerKey, value: 5 }] },
+    { id: '_default_stopLeft', trigger: { type: 'inputReleased', input: 'moveLeft' }, actions: [{ type: 'setVelocityX', target: playerKey, value: 0 }] },
+    { id: '_default_stopRight', trigger: { type: 'inputReleased', input: 'moveRight' }, actions: [{ type: 'setVelocityX', target: playerKey, value: 0 }] },
+    { id: '_default_jump', trigger: { type: 'inputPressed', input: 'jump' }, actions: [{ type: 'applyImpulse', target: playerKey, value: { x: 0, y: 7, z: 0 } }] }
+  ];
+  scene.behaviors.push(...injected);
+  addNormalizationWarning(
+    warnings,
+    'normalized.playerBehaviorsDefaulted',
+    `scenes.0.behaviors`,
+    null,
+    injected.map((b) => b.id),
+    'Player had standard input bindings but no movement behaviors; injected default platformer wiring (moveLeft/moveRight/jump).'
+  );
+}
+
+// ─── Behavior action normalization ──────────────────────────────────────────
+
+const ACTION_ALIASES = {
+  spawnat: 'spawnPrefab',
+  spawn: 'spawnPrefab',
+  spawnentity: 'spawnPrefab',
+  modifystate: 'incrementState',
+  changestate: 'setState',
+  updatestate: 'setState',
+  updatetext: null,
+  settext: null,
+  foreachentity: null,
+  iterateentities: null,
+  loopentities: null,
+  noop: null
+};
+
+const SUPPORTED_ACTION_TYPES = new Set([
+  'setState', 'incrementState', 'decrementState', 'switchScene', 'spawnPrefab', 'destroyEntity',
+  'applyImpulse', 'applyForce', 'applyTorque',
+  'setVelocity', 'setLinearVelocity', 'setVelocityX', 'setVelocityY', 'setVelocityZ',
+  'setAngularVelocity', 'addKnockback',
+  'setPosition', 'translate', 'playSound', 'emitEvent', 'addTag', 'removeTag'
+]);
+
+function normalizeActionList(actions, warnings, path) {
+  if (!Array.isArray(actions)) return actions;
+  const result = [];
+  for (const [i, action] of actions.entries()) {
+    if (!action || typeof action !== 'object') continue;
+    const rawType = String(action.type ?? action.action ?? '');
+    if (!rawType) continue;
+    if (SUPPORTED_ACTION_TYPES.has(rawType)) {
+      result.push(action);
+      continue;
+    }
+    const aliasKey = rawType.toLowerCase().replace(/[_\s-]/g, '');
+    if (aliasKey in ACTION_ALIASES) {
+      const mappedType = ACTION_ALIASES[aliasKey];
+      if (mappedType === null) {
+        addNormalizationWarning(warnings, 'normalized.actionUnsupportedDropped', `${path}.${i}`, clonePlainObject(action), null, `Unsupported action "${rawType}" was dropped.`);
+        continue;
+      }
+      const before = clonePlainObject(action);
+      // Coerce modifyState into incrementState when an amount is present, else setState.
+      if (mappedType === 'incrementState' && action.amount === undefined && action.value !== undefined) {
+        action.type = 'setState';
+        delete action.action;
+      } else {
+        action.type = mappedType;
+        delete action.action;
+      }
+      addNormalizationWarning(warnings, 'normalized.actionRenamed', `${path}.${i}.type`, before, clonePlainObject(action), `Action "${rawType}" was renamed to "${action.type}".`);
+      result.push(action);
+      continue;
+    }
+    addNormalizationWarning(warnings, 'normalized.actionUnsupportedDropped', `${path}.${i}`, clonePlainObject(action), null, `Unknown action "${rawType}" was dropped.`);
+  }
+  return result;
+}
+
+function normalizeBehaviorList(behaviors, warnings, path) {
+  if (!Array.isArray(behaviors)) return;
+  for (const [i, b] of behaviors.entries()) {
+    if (!b || typeof b !== 'object') continue;
+    b.actions = normalizeActionList(b.actions, warnings, `${path}.${i}.actions`);
+  }
+}
+
+function normalizeBehaviors(candidate, warnings) {
+  normalizeBehaviorList(candidate.behaviors, warnings, 'behaviors');
+  if (Array.isArray(candidate.scenes)) {
+    for (const [i, scene] of candidate.scenes.entries()) {
+      if (!scene) continue;
+      normalizeBehaviorList(scene.behaviors, warnings, `scenes.${i}.behaviors`);
+    }
   }
 }
 

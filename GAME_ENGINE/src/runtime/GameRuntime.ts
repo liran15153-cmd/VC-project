@@ -15,10 +15,17 @@ import { TweenSystem } from '../systems/TweenSystem';
 import { SpawnerSystem } from '../systems/SpawnerSystem';
 import { UISystem } from '../systems/UISystem';
 import { AudioSystem } from '../systems/AudioSystem';
+import { MovingPlatformSystem } from '../systems/MovingPlatformSystem';
+import { MovingPlatformComponent } from '../components/MovingPlatform';
+import { PhysicsCharacterController } from '../physics/PhysicsCharacterController';
+import { CharacterControllerSystem } from '../systems/CharacterControllerSystem';
+import { TriggerVolumeRegistry } from './TriggerVolumes';
 import { Colliders } from '../physics/Colliders';
 import { AssetManager } from '../assets/AssetManager';
 import type { LoadedAsset } from '../assets/AssetManager';
 import type { ColliderOptions } from '../physics/Colliders';
+import type { PhysicsEntityMetadata } from '../physics/PhysicsWorld';
+import { physicsRoleToCollisionLayer, resolvePhysicsRole, roleRequiresSensorBehavior } from '../physics/PhysicsRoles';
 import type { ISystem } from '../core/types';
 import type {
   EntityDefinition,
@@ -105,6 +112,9 @@ export class GameRuntime {
 }
 
 class DefinitionScene extends Scene {
+  private triggerRegistry: TriggerVolumeRegistry | null = null;
+  private characterControllerSystem: CharacterControllerSystem | null = null;
+
   constructor(
     private readonly definition: SceneDefinition,
     private readonly rootDefinition: GameDefinition,
@@ -126,14 +136,22 @@ class DefinitionScene extends Scene {
     const animations = [...this.rootDefinition.animations, ...this.definition.animations];
     const ui = [...this.rootDefinition.ui, ...this.definition.ui];
     const audio = [...this.rootDefinition.audio, ...this.definition.audio];
+    const triggerRegistry = new TriggerVolumeRegistry();
+    this.triggerRegistry = triggerRegistry;
+    const hasTriggerEntities = this.definition.entities.some((entity) => !!entity.trigger);
 
     for (const system of this.definition.systems) {
       if (system === 'physicsSync' || system === 'camera') this.addSystem(this.systemRegistry.require(system)());
     }
-    if (behaviors.length || audio.some((rule) => triggerType(rule.trigger) === 'collision') || this.definition.systems.includes('behavior')) {
-      this.addSystem(new BehaviorSystem(behaviors, api));
+    if (behaviors.length || hasTriggerEntities || audio.some((rule) => triggerType(rule.trigger) === 'collision') || this.definition.systems.includes('behavior')) {
+      this.addSystem(new BehaviorSystem(behaviors, api, triggerRegistry));
     }
     if (this.definition.spawners.length || this.definition.systems.includes('spawner')) this.addSystem(new SpawnerSystem(this.definition.spawners, api));
+    if (this.definition.entities.some((entity) => entity.movingPlatform)) this.addSystem(new MovingPlatformSystem());
+    if (this.definition.entities.some((entity) => !!entity.characterController)) {
+      this.characterControllerSystem = new CharacterControllerSystem();
+      this.addSystem(this.characterControllerSystem);
+    }
     if (animations.length || this.definition.systems.includes('tween')) this.addSystem(new TweenSystem(animations));
     if (ui.length || this.definition.systems.includes('ui')) this.addSystem(new UISystem(ui));
     if (audio.length || this.definition.systems.includes('audio')) this.addSystem(new AudioSystem(audio, api));
@@ -155,13 +173,49 @@ class DefinitionScene extends Scene {
 
     if (entity.model) this.attachModel(engine, id, entity.model);
     else if (entity.mesh) this.attachMesh(engine, id, entity.mesh);
-    if (entity.rigidBody) this.attachRigidBody(engine, id, entity.rigidBody, transform);
+    if (entity.rigidBody) this.attachRigidBody(engine, id, entity, transform);
     if (entity.sprite) this.attachSprite(engine, id, entity.sprite);
     if (entity.cameraTarget) {
       const cameraTarget = new CameraTarget();
       cameraTarget.lerp = entity.cameraTarget.lerp;
       cameraTarget.offset = { ...entity.cameraTarget.offset };
       this.world.addComponent(id, cameraTarget);
+    }
+    if (entity.movingPlatform) {
+      const config = entity.movingPlatform.kind === 'path'
+        ? {
+            kind: 'path' as const,
+            waypoints: entity.movingPlatform.waypoints.map((p) => ({ ...p })),
+            speed: entity.movingPlatform.speed,
+            mode: entity.movingPlatform.mode,
+          }
+        : {
+            kind: 'velocity' as const,
+            velocity: { ...entity.movingPlatform.velocity },
+          };
+      this.world.addComponent(id, new MovingPlatformComponent(config));
+    }
+    if (entity.characterController && engine.physics?.isReady()) {
+      const controller = new PhysicsCharacterController(engine.physics, {
+        entityId: id,
+        preset: entity.characterController.preset,
+      });
+      if (this.characterControllerSystem) {
+        this.characterControllerSystem.register(id, controller, entity.characterController.preset);
+      }
+      this.addCleanup(() => {
+        this.characterControllerSystem?.unregister(id);
+        controller.destroy();
+      });
+    }
+    if (entity.trigger && this.triggerRegistry) {
+      this.triggerRegistry.register(id, {
+        onEnter: entity.trigger.onEnter,
+        onExit: entity.trigger.onExit,
+        onStay: entity.trigger.onStay,
+      });
+      const registry = this.triggerRegistry;
+      this.addCleanup(() => registry.unregister(id));
     }
     return id;
   }
@@ -196,7 +250,10 @@ class DefinitionScene extends Scene {
     const sprite = this.world.getComponent(id, SpriteComponent)?.gameObject;
     sprite?.destroy();
     const body = this.world.getComponent(id, RigidBodyComponent)?.body;
-    if (body && engine.physics?.isReady()) engine.physics.world.removeRigidBody(body);
+    if (body && engine.physics?.isReady()) {
+      engine.physics.unregisterEntityBody(id);
+      engine.physics.world.removeRigidBody(body);
+    }
     this.world.destroyEntity(id);
   }
 
@@ -258,8 +315,10 @@ class DefinitionScene extends Scene {
     this.world.addComponent(id, new MeshComponent(root));
   }
 
-  private attachRigidBody(engine: Engine, id: number, definition: RigidBodyDefinition, transform: Transform): void {
+  private attachRigidBody(engine: Engine, id: number, entity: EntityDefinition, transform: Transform): void {
     if (!engine.physics?.isReady()) throw new Error(`Entity ${id} defines a rigidBody but physics is disabled or not ready.`);
+    const definition = entity.rigidBody;
+    if (!definition) return;
 
     const bodyOptions = {
       type: definition.type,
@@ -268,7 +327,7 @@ class DefinitionScene extends Scene {
       angularDamping: definition.angularDamping,
       ccd: definition.ccd,
     };
-    const colliderOptions: ColliderOptions = definition.colliderOptions;
+    const { colliderOptions, metadata } = resolvePhysicsRuntimeOptions(entity, definition);
 
     const physicsBody =
       definition.collider.shape === 'cuboid'
@@ -277,10 +336,14 @@ class DefinitionScene extends Scene {
           ? Colliders.ball(engine.physics, definition.collider.radius, bodyOptions, colliderOptions)
           : Colliders.capsule(engine.physics, definition.collider.halfHeight, definition.collider.radius, bodyOptions, colliderOptions);
 
+    engine.physics.registerEntityBody(id, physicsBody.body, [physicsBody.collider], metadata);
     this.addCleanup(() => {
-      if (engine.physics?.isReady()) engine.physics.world.removeRigidBody(physicsBody.body);
+      if (engine.physics?.isReady()) {
+        engine.physics.unregisterEntityBody(id);
+        engine.physics.world.removeRigidBody(physicsBody.body);
+      }
     });
-    this.world.addComponent(id, new RigidBodyComponent(physicsBody.body, physicsBody.collider));
+    this.world.addComponent(id, new RigidBodyComponent(physicsBody.body, physicsBody.collider, [physicsBody.collider]));
   }
 
   private attachSprite(engine: Engine, id: number, definition: SpriteDefinition): void {
@@ -309,6 +372,34 @@ class DefinitionScene extends Scene {
       this.world.addComponent(id, component);
     }
   }
+}
+
+function resolvePhysicsRuntimeOptions(
+  entity: EntityDefinition,
+  rigidBody: RigidBodyDefinition,
+): { colliderOptions: ColliderOptions; metadata: PhysicsEntityMetadata } {
+  const role = resolvePhysicsRole({
+    key: entity.key,
+    name: entity.name,
+    tags: entity.tags,
+    data: entity.data,
+    bodyType: rigidBody.type,
+    colliderSensor: rigidBody.colliderOptions.sensor,
+  });
+  const colliderOptions: ColliderOptions = { ...rigidBody.colliderOptions };
+  const layer = physicsRoleToCollisionLayer(role);
+  if (layer) colliderOptions.layer = layer;
+  if (roleRequiresSensorBehavior(role)) colliderOptions.sensor = true;
+
+  return {
+    colliderOptions,
+    metadata: {
+      key: entity.key,
+      role,
+      tags: entity.tags,
+      expectedCollider: true,
+    },
+  };
 }
 
 function createMesh(definition: MeshDefinition): THREE.Mesh {

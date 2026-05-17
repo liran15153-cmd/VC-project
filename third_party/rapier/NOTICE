@@ -1,0 +1,66 @@
+LOOMIER / Gaming Vibe Coding includes selected source snapshots from the
+Rapier physics engine project for attribution, provenance, and implementation
+reference. The selected snapshots are used under the terms of the Apache
+License, Version 2.0.
+
+----------------------------------------------------------------------------
+Rapier
+----------------------------------------------------------------------------
+
+  Copyright 2019-2026 Dimforge
+  Upstream repository: https://github.com/dimforge/rapier
+  Local snapshot path: C:\Users\lior\Downloads\rapier-master\rapier-master
+  License: Apache License, Version 2.0
+
+  A copy of the license is provided as ./LICENSE.
+  Dimforge and Rapier names are used only for attribution and provenance.
+  No Dimforge/Rapier endorsement of LOOMIER is implied.
+
+----------------------------------------------------------------------------
+Copied source snapshots
+----------------------------------------------------------------------------
+
+The following upstream files are copied under ./upstream/ as source snapshots.
+They are not compiled into LOOMIER and do not introduce a Rust/WASM build.
+
+  LICENSE
+  README.md
+  ARCHITECTURE.md
+  examples3d/character_controller3.rs
+  examples2d/character_controller2.rs
+  examples3d/utils/character.rs
+  examples2d/utils/character.rs
+  examples3d/sensor3.rs
+  examples2d/sensor2.rs
+  examples3d/collision_groups3.rs
+  examples2d/collision_groups2.rs
+  examples3d/stress_tests/ray_cast3.rs
+  src_testbed/debug_render.rs
+  examples3d/heightfield3.rs
+  examples3d/trimesh3.rs
+
+See ./upstream-manifest.json for file hashes, source snapshot metadata,
+per-file status, and local TypeScript adaptation targets.
+
+----------------------------------------------------------------------------
+Adapted LOOMIER areas
+----------------------------------------------------------------------------
+
+The following LOOMIER runtime/test areas are informed by the copied Rapier
+examples, but are implemented as LOOMIER-owned TypeScript against the official
+`@dimforge/rapier3d-compat` package:
+
+  GAME_ENGINE/src/physics/RapierExampleFixtures.ts
+    adapts fixture patterns from character_controller3.rs,
+    character_controller2.rs, sensor3.rs, collision_groups3.rs, and
+    stress_tests/ray_cast3.rs.
+
+  GAME_ENGINE/tests/physics-rapier-source-adoption.test.ts
+    verifies the adapted fixtures against LOOMIER wrappers for character
+    controller, named collision layers, sensors, ray casting, and debug render.
+
+No Rapier core engine internals, solver code, broad phase, narrow phase,
+geometry pipeline, crate build setup, or Rust/WASM bindings are used as
+LOOMIER runtime code in this phase.
+
+No Rapier assets are copied in this phase.

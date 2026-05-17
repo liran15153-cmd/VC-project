@@ -154,7 +154,7 @@ export class PreviewController {
       this.fail(categoriseValidationError(err));
       return;
     }
-    const definition = parsed.definition;
+    const definition = remapPreviewAssetUrls(parsed.definition, inferPreviewBasePath(this.container));
     this.lastWarnings = parsed.warnings.map(warningFromNormalization);
 
     // 2) Preflight asset references / supported types.
@@ -442,6 +442,31 @@ export function buildSummary(definition: GameDefinition): GameSummary {
     uses2D,
     usesPhysics,
   };
+}
+
+export function inferPreviewBasePath(container: HTMLElement): string {
+  const pathname = container.ownerDocument?.location?.pathname ?? '';
+  const marker = '/engine-preview/';
+  const index = pathname.indexOf(marker);
+  if (index === -1) return '';
+  return pathname.slice(0, index + marker.length - 1);
+}
+
+export function remapPreviewAssetUrls(definition: GameDefinition, basePath: string): GameDefinition {
+  const cleanBase = basePath.replace(/\/$/, '');
+  if (!cleanBase) return definition;
+
+  let changed = false;
+  const assets = definition.assets.map((asset) => {
+    if (!asset.url.startsWith('/assets/')) return asset;
+    changed = true;
+    return {
+      ...asset,
+      url: `${cleanBase}${asset.url}`,
+    };
+  });
+
+  return changed ? { ...definition, assets } : definition;
 }
 
 function warningFromNormalization(warning: GameDefinitionNormalizationWarning): PreviewWarning {

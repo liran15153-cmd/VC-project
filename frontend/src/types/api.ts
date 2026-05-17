@@ -112,6 +112,16 @@ export interface GameBrief {
   nonGoals: string[];
 }
 
+export interface ClassifierMeta {
+  archetype: string;
+  dimension: '2D' | '3D' | 'hybrid';
+  confidenceScore: number;
+  source: 'user' | 'mcq' | 'llm' | 'heuristic';
+  dimensionSource: 'user' | 'mcq' | 'heuristic' | 'default';
+  reasoningShort: string;
+  warnings: string[];
+}
+
 export interface GameBriefGenerateResponse {
   brief: GameBrief;
   meta: {
@@ -125,6 +135,7 @@ export interface GameBriefGenerateResponse {
     cached?: boolean;
     tokenOptimization?: unknown;
     codeGenerated?: false;
+    classifier?: ClassifierMeta | null;
   };
 }
 
@@ -286,12 +297,86 @@ export interface AssetResolution {
   meta: AssetResolutionMeta;
 }
 
+export interface DebugRepairPatch {
+  op: 'replace' | 'add';
+  path: string;
+  value: unknown;
+  reason: string;
+  diagnosticCode: string;
+}
+
+export interface DebugRepair {
+  attempted: boolean;
+  accepted: boolean;
+  appliedPatches: DebugRepairPatch[];
+  skippedCount: number;
+}
+
+export interface DebugDiagnostic {
+  code: string;
+  severity: 'error' | 'warning';
+  message: string;
+  jsonPointer?: string;
+  expected?: unknown;
+  actual?: unknown;
+  suggestedFixText?: string;
+}
+
+export interface DebugDiagnosticsSummary {
+  errorCount: number;
+  warningCount: number;
+  codes: Record<string, number>;
+}
+
+export interface NormalizationWarning {
+  code: string;
+  path: string;
+  before: unknown;
+  after: unknown;
+  message: string;
+}
+
+export interface AssetUsageSummary {
+  allowedAssetCount: number;
+  usedAssetCount: number;
+  unusedAssetCount: number;
+  invalidAssetKeys: string[];
+  unusedAssetKeys: string[];
+  usedAssetKeys: string[];
+  requiredAssetUsedCount?: number;
+  unusedRequiredAssetKeys?: string[];
+}
+
+export interface BehaviorStateUsageSummary {
+  declaredStateKeys: string[];
+  referencedStateKeys: string[];
+  missingStateKeys: string[];
+  unusedStateKeys: string[];
+}
+
+export interface CameraUsageSummary {
+  scenesWithCameraSystem: string[];
+  scenesMissingCameraTarget: Array<{
+    sceneKey: string;
+    sceneIndex: number;
+    preferredTargetKey: string | null;
+  }>;
+}
+
 export interface EngineFromBriefResponse {
   brief: GameBrief;
   selectedAssets?: ResolvedAsset[];
   assetResolution?: AssetResolution;
   assetManifest?: RuntimeAssetManifest;
   gameDefinition: unknown;
+  assetUsageSummary?: AssetUsageSummary;
+  behaviorStateUsageSummary?: BehaviorStateUsageSummary;
+  cameraUsageSummary?: CameraUsageSummary;
+  generationContractIssues?: string[];
+  normalizationWarnings?: NormalizationWarning[];
+  debugDiagnostics?: DebugDiagnostic[];
+  debugDiagnosticsSummary?: DebugDiagnosticsSummary;
+  debugRepair?: DebugRepair;
   meta: {
     provider?: string;
     model?: string;
@@ -305,6 +390,14 @@ export interface EngineFromBriefResponse {
     gameType?: string | null;
     toolCalling?: unknown;
     normalizationWarningCount?: number;
+    debugDiagnosticErrorCount?: number;
+    debugDiagnosticWarningCount?: number;
+    debugRepairAccepted?: boolean;
+    debugRepairPatchCount?: number;
+    assetUsageSummary?: AssetUsageSummary;
+    behaviorStateUsageSummary?: BehaviorStateUsageSummary;
+    cameraUsageSummary?: CameraUsageSummary;
+    generationContractIssueCount?: number;
     persistence?: string;
     tokens?: TokenBalance;
   };

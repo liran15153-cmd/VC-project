@@ -1,0 +1,139 @@
+{
+  "upstream": {
+    "name": "Rapier",
+    "repository": "https://github.com/dimforge/rapier",
+    "commitSha": null,
+    "commitShaStatus": "unavailable: local rapier-master snapshot has no .git metadata or archive commit marker",
+    "sourceVersion": "0.32.0",
+    "sourceVersionStatus": "from workspace.package.version in local Cargo.toml",
+    "sourceTag": null,
+    "sourceTagStatus": "unavailable: local snapshot appears to be an unreleased master archive; no tag metadata present",
+    "localSnapshotPath": "C:\\Users\\lior\\Downloads\\rapier-master\\rapier-master",
+    "localSnapshotDate": "2026-05-16T15:53:11.5077243+03:00",
+    "capturedAt": "2026-05-17",
+    "license": "Apache-2.0"
+  },
+  "policy": "Source snapshots only. Runtime uses @dimforge/rapier3d-compat plus LOOMIER TypeScript adaptations; no Rust fork/build is introduced.",
+  "files": [
+    {
+      "path": "LICENSE",
+      "bytes": 11347,
+      "sha256": "ceacfa4d7fa67df64ab09a56fe248c50a3bfc9bc00374d69bd74ad763b14b89c",
+      "status": "reference-only",
+      "localTypeScriptAdaptationTarget": null,
+      "notes": "Apache-2.0 license text retained for attribution."
+    },
+    {
+      "path": "README.md",
+      "bytes": 2742,
+      "sha256": "9ab03858d507b2a3c7441ebcdc7b408700bbfb252d58ec1431cca8c8a6217b6a",
+      "status": "reference-only",
+      "localTypeScriptAdaptationTarget": null,
+      "notes": "Repository overview/provenance reference only."
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "bytes": 1281,
+      "sha256": "5a8a9acd5eb7859da862e060a48543b424c14071ff40546692a13cf6f9097c5d",
+      "status": "reference-only",
+      "localTypeScriptAdaptationTarget": null,
+      "notes": "Architecture context reference only; no core engine internals copied as runtime."
+    },
+    {
+      "path": "examples3d/character_controller3.rs",
+      "bytes": 7482,
+      "sha256": "47f715488eed2cd0b2a322fefcb21053ace401060f09c151ba9a237ea4d67d29",
+      "status": "adapted",
+      "localTypeScriptAdaptationTarget": "GAME_ENGINE/src/physics/RapierExampleFixtures.ts; GAME_ENGINE/tests/physics-rapier-source-adoption.test.ts; GAME_ENGINE/src/physics/PhysicsCharacterController.ts",
+      "notes": "3D character controller fixture patterns for slope, wall, step, snap-to-ground, and safe slope-limit tuning."
+    },
+    {
+      "path": "examples2d/character_controller2.rs",
+      "bytes": 6739,
+      "sha256": "f6044f320094d974cb85a11bf444e1be513b1b92f4dd80515d9a5243e25ac0c8",
+      "status": "reference-only",
+      "localTypeScriptAdaptationTarget": null,
+      "notes": "Reference only. LOOMIER platformer2d/runner2d presets remain 2D-style controllers inside Rapier3D, not direct rapier2d ports."
+    },
+    {
+      "path": "examples3d/utils/character.rs",
+      "bytes": 10137,
+      "sha256": "6afe7a67ffbd564a227122df4170a29be976dc26efe0a24b3bfdfdea3a54a998",
+      "status": "adapted",
+      "localTypeScriptAdaptationTarget": "GAME_ENGINE/src/physics/PhysicsCharacterController.ts; GAME_ENGINE/tests/physics-character-controller.test.ts",
+      "notes": "Kinematic controller configuration and movement reference adapted through JS/WASM wrapper calls."
+    },
+    {
+      "path": "examples2d/utils/character.rs",
+      "bytes": 9441,
+      "sha256": "d71a729b9670a0e8322168bb130920a541324f61535dcfb2d05bdcbd805a51dc",
+      "status": "reference-only",
+      "localTypeScriptAdaptationTarget": null,
+      "notes": "Reference only. No direct rapier2d runtime code or PID controller adoption in this phase."
+    },
+    {
+      "path": "examples3d/sensor3.rs",
+      "bytes": 3660,
+      "sha256": "4a1b68182557127f27cdad5ac9823b3822aee48082b6d251e387dc7c0f928f93",
+      "status": "adapted",
+      "localTypeScriptAdaptationTarget": "GAME_ENGINE/src/physics/RapierExampleFixtures.ts; GAME_ENGINE/tests/physics-rapier-source-adoption.test.ts",
+      "notes": "Sensor attached to a body and multiple-collider entity behavior adapted to LOOMIER fixture tests."
+    },
+    {
+      "path": "examples2d/sensor2.rs",
+      "bytes": 3437,
+      "sha256": "cdb85df49c96eb8462e4c2082fbe9971a68a98c1821694a754bb32e86fb579a8",
+      "status": "reference-only",
+      "localTypeScriptAdaptationTarget": null,
+      "notes": "Reference only. Current runtime path is Rapier3D compatibility."
+    },
+    {
+      "path": "examples3d/collision_groups3.rs",
+      "bytes": 3156,
+      "sha256": "8455a41361281562ce10172d72180efe9afa4b3d24c890cdc136bab335e7cf0e",
+      "status": "adapted",
+      "localTypeScriptAdaptationTarget": "GAME_ENGINE/src/physics/RapierExampleFixtures.ts; GAME_ENGINE/tests/physics-rapier-source-adoption.test.ts",
+      "notes": "Interaction-group separation adapted through LOOMIER named collision layer wrappers."
+    },
+    {
+      "path": "examples2d/collision_groups2.rs",
+      "bytes": 2900,
+      "sha256": "741e8061b3ec8762c289a8492e06b5b787ca558203097a5136583eed81a6d349",
+      "status": "reference-only",
+      "localTypeScriptAdaptationTarget": null,
+      "notes": "Reference only. No direct 2D Rapier group code is compiled."
+    },
+    {
+      "path": "examples3d/stress_tests/ray_cast3.rs",
+      "bytes": 3026,
+      "sha256": "1f7bb280f8c3d46039779a171cf606f759d1e5f32ea13157548e673900165d45",
+      "status": "adapted",
+      "localTypeScriptAdaptationTarget": "GAME_ENGINE/src/physics/RapierExampleFixtures.ts; GAME_ENGINE/tests/physics-rapier-source-adoption.test.ts",
+      "notes": "Reduced deterministic ray-fan fixture adapted; no benchmark/stress harness copied."
+    },
+    {
+      "path": "src_testbed/debug_render.rs",
+      "bytes": 3138,
+      "sha256": "a410df9242b438378240dbf87f561831a72e0533c3218794defe83e9ca96f67f",
+      "status": "reference-only",
+      "localTypeScriptAdaptationTarget": null,
+      "notes": "Debug-render buffer/color sanity reference only; LOOMIER uses world.debugRender() from JS compat."
+    },
+    {
+      "path": "examples3d/heightfield3.rs",
+      "bytes": 3565,
+      "sha256": "4d3c37a9345850886d6b984ce2a82e36f17668195f288ed5b0c3216a38043d8e",
+      "status": "deferred",
+      "localTypeScriptAdaptationTarget": null,
+      "notes": "Deferred terrain collider reference. No arbitrary heightfield exposure in GameDefinition."
+    },
+    {
+      "path": "examples3d/trimesh3.rs",
+      "bytes": 3884,
+      "sha256": "e1a0e5bebfa1e25404c4753cf79560e56a04a2cc6ed3e2aa86b9857302576816",
+      "status": "deferred",
+      "localTypeScriptAdaptationTarget": null,
+      "notes": "Deferred trimesh collider reference. No arbitrary trimesh exposure in GameDefinition."
+    }
+  ]
+}

@@ -1,0 +1,236 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: GVC
+      - generic [ref=e7]:
+        - generic [ref=e8]: Gaming Vibe
+        - generic [ref=e9]: AI Game Builder
+    - navigation [ref=e10]:
+      - link "⌂ Dashboard" [ref=e11] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e12]: ⌂
+        - text: Dashboard
+      - link "✨ Build a Game" [ref=e13] [cursor=pointer]:
+        - /url: /build
+        - generic [ref=e14]: ✨
+        - text: Build a Game
+      - link "▦ My Games" [ref=e15] [cursor=pointer]:
+        - /url: /games
+        - generic [ref=e16]: ▦
+        - text: My Games
+    - generic [ref=e18]:
+      - generic [ref=e19]: L
+      - generic [ref=e20]:
+        - generic [ref=e21]: Local Creator
+        - generic [ref=e22]: user
+      - button "Sign out" [ref=e23] [cursor=pointer]
+  - main [ref=e24]:
+    - generic [ref=e26]:
+      - button "⛁ 999 / 999 tokens" [ref=e27] [cursor=pointer]:
+        - generic [ref=e28]: ⛁
+        - generic [ref=e29]: 999 / 999 tokens
+      - button "Backend online" [ref=e31] [cursor=pointer]:
+        - generic [ref=e33]: Backend online
+    - generic [ref=e61]:
+      - generic [ref=e62]:
+        - heading "Build a game" [level=1] [ref=e63]
+        - generic [ref=e64]: Tell us what to make. The AI will ask a few questions, then generate a playable game.
+      - generic [ref=e65]:
+        - generic [ref=e66]:
+          - heading "1. Describe your game" [level=2] [ref=e67]
+          - generic [ref=e68]: What do you want to build?
+          - textbox "A 2D platformer where a fox collects glowing fruit and avoids spiked plants…" [ref=e69]: A 2D side-scrolling platformer where a small fox collects glowing acorns, jumps over pits, and avoids spiked vines. Make it simple, playable, and focused on movement, collectibles, enemies, and a clear goal.
+          - generic [ref=e70]:
+            - generic [ref=e71]:
+              - generic [ref=e72]: Dimension
+              - combobox [ref=e73]:
+                - option "2D" [selected]
+                - option "3D"
+                - option "Hybrid"
+            - generic [ref=e74]:
+              - generic [ref=e75]: Genre
+              - combobox [ref=e76]:
+                - option "platformer" [selected]
+                - option "shooter"
+                - option "runner"
+                - option "breakout"
+                - option "rpg"
+                - option "puzzle"
+            - generic [ref=e77]:
+              - generic [ref=e78]: AI model
+              - combobox [ref=e79]:
+                - option "openai/gpt-5.1" [selected]
+              - generic [ref=e80]: "Provider: OpenRouter"
+          - generic [ref=e81]:
+            - button "Regenerate questions" [ref=e104] [cursor=pointer]
+            - button "Start over" [ref=e105] [cursor=pointer]
+          - heading "2. Quick questions" [level=2] [ref=e106]
+          - generic [ref=e107]:
+            - generic [ref=e108]: Questions Agent
+            - generic [ref=e109]: openrouter · real · openai/gpt-5.1-20251113 · 5.8s
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - generic [ref=e112]: How agile should the fox feel in the first build?
+              - generic [ref=e113]:
+                - generic [ref=e114] [cursor=pointer]:
+                  - radio "Tight and precise jumps, short air time" [checked] [ref=e115]
+                  - generic [ref=e116]: Tight and precise jumps, short air time
+                - generic [ref=e117] [cursor=pointer]:
+                  - radio "Floaty, longer air time, easier jumps" [ref=e118]
+                  - generic [ref=e119]: Floaty, longer air time, easier jumps
+                - generic [ref=e120] [cursor=pointer]:
+                  - radio "Fast and slippery, momentum matters" [ref=e121]
+                  - generic [ref=e122]: Fast and slippery, momentum matters
+            - generic [ref=e123]:
+              - generic [ref=e124]: What is the main purpose of glowing acorns in level 1?
+              - generic [ref=e125]:
+                - generic [ref=e126] [cursor=pointer]:
+                  - radio "Score only (optional to collect)" [checked] [ref=e127]
+                  - generic [ref=e128]: Score only (optional to collect)
+                - generic [ref=e129] [cursor=pointer]:
+                  - radio "Gate the exit (collect X to finish)" [ref=e130]
+                  - generic [ref=e131]: Gate the exit (collect X to finish)
+                - generic [ref=e132] [cursor=pointer]:
+                  - radio "Heal / protect the fox (simple survival)" [ref=e133]
+                  - generic [ref=e134]: Heal / protect the fox (simple survival)
+            - generic [ref=e135]:
+              - generic [ref=e136]: How should the first enemies challenge the player?
+              - generic [ref=e137]:
+                - generic [ref=e138] [cursor=pointer]:
+                  - radio "Simple walkers you must jump over" [checked] [ref=e139]
+                  - generic [ref=e140]: Simple walkers you must jump over
+                - generic [ref=e141] [cursor=pointer]:
+                  - radio "Enemies you can stomp to defeat" [ref=e142]
+                  - generic [ref=e143]: Enemies you can stomp to defeat
+                - generic [ref=e144] [cursor=pointer]:
+                  - radio "Stationary hazards (like moving vines)" [ref=e145]
+                  - generic [ref=e146]: Stationary hazards (like moving vines)
+            - generic [ref=e147]:
+              - generic [ref=e148]: How do spiked vines behave in the first level?
+              - generic [ref=e149]:
+                - generic [ref=e150] [cursor=pointer]:
+                  - radio "Static obstacles you time your jumps around" [checked] [ref=e151]
+                  - generic [ref=e152]: Static obstacles you time your jumps around
+                - generic [ref=e153] [cursor=pointer]:
+                  - radio "Move in clear patterns (swinging, rising)" [ref=e154]
+                  - generic [ref=e155]: Move in clear patterns (swinging, rising)
+                - generic [ref=e156] [cursor=pointer]:
+                  - radio "Appear from ground/walls when you get close" [ref=e157]
+                  - generic [ref=e158]: Appear from ground/walls when you get close
+            - generic [ref=e159]:
+              - generic [ref=e160]: What is the clear goal to finish the first level?
+              - generic [ref=e161]:
+                - generic [ref=e162] [cursor=pointer]:
+                  - radio "Reach a glowing exit at the far right" [checked] [ref=e163]
+                  - generic [ref=e164]: Reach a glowing exit at the far right
+                - generic [ref=e165] [cursor=pointer]:
+                  - radio "Bring enough acorns to a goal tree" [ref=e166]
+                  - generic [ref=e167]: Bring enough acorns to a goal tree
+                - generic [ref=e168] [cursor=pointer]:
+                  - radio "Survive to a timer/scrolling end point" [ref=e169]
+                  - generic [ref=e170]: Survive to a timer/scrolling end point
+            - generic [ref=e171]:
+              - generic [ref=e172]: What happens when the fox hits a pit or spikes?
+              - generic [ref=e173]:
+                - generic [ref=e174] [cursor=pointer]:
+                  - radio "Instant death, restart from last checkpoint" [checked] [ref=e175]
+                  - generic [ref=e176]: Instant death, restart from last checkpoint
+                - generic [ref=e177] [cursor=pointer]:
+                  - radio "Lose 1 heart, respawn nearby" [ref=e178]
+                  - generic [ref=e179]: Lose 1 heart, respawn nearby
+                - generic [ref=e180] [cursor=pointer]:
+                  - radio "Lose acorns you collected, try again" [ref=e181]
+                  - generic [ref=e182]: Lose acorns you collected, try again
+          - button "Generate game" [ref=e184] [cursor=pointer]
+          - generic [ref=e186]:
+            - generic [ref=e187]:
+              - generic [ref=e188]:
+                - heading "3. Game brief" [level=2] [ref=e189]
+                - generic [ref=e190]: Fox of the Glowing Grove
+              - generic [ref=e191]:
+                - generic [ref=e192]: Brief Agent
+                - generic [ref=e193]: openrouter · real · openai/gpt-5.1-20251113 · 17.0s
+            - paragraph [ref=e194]: A nimble fox dashes through a forest of pits and spiked vines, collecting glowing acorns and reaching the exit in tightly tuned 2D platforming.
+            - generic [ref=e195]:
+              - generic [ref=e196]:
+                - generic [ref=e197]: Core loop
+                - list [ref=e198]:
+                  - listitem [ref=e199]: Run and jump through short forest levels
+                  - listitem [ref=e200]: Collect as many glowing acorns as possible
+                  - listitem [ref=e201]: Avoid pits, spiked vines, and patrolling enemies
+                  - listitem [ref=e202]: Reach the exit flag to complete the level
+                  - listitem [ref=e203]: Respawn at checkpoints after deaths and try again
+              - generic [ref=e204]:
+                - generic [ref=e205]: Runtime systems
+                - list [ref=e206]:
+                  - listitem [ref=e207]: PlayerMovementAndJumpSystem
+                  - listitem [ref=e208]: CameraFollowAndBoundsSystem
+                  - listitem [ref=e209]: AcornCollectibleSystem
+                  - listitem [ref=e210]: EnemyPatrolAndCollisionSystem
+                  - listitem [ref=e211]: HazardAndDeathRespawnSystem
+              - generic [ref=e212]:
+                - generic [ref=e213]: Assets to generate
+                - list [ref=e214]:
+                  - listitem [ref=e215]: Fox player sprite sheet with idle, run, jump, fall, death
+                  - listitem [ref=e216]: Glowing acorn collectible sprites with simple glow animation
+                  - listitem [ref=e217]: Forest ground, platforms, background trees, and bushes tiles
+                  - listitem [ref=e218]: Static spiked vine hazard sprites in horizontal and vertical forms
+                  - listitem [ref=e219]: Small walking enemy sprite (e.g., beetle or slime) with walk and hit
+        - complementary [ref=e83]:
+          - heading "Progress" [level=2] [ref=e84]
+          - list [ref=e85]:
+            - listitem [ref=e86]:
+              - generic [ref=e87]: ✓
+              - generic [ref=e88]: Checking backend
+            - listitem [ref=e89]:
+              - generic [ref=e90]: ✓
+              - generic [ref=e91]: Generating questions
+            - listitem [ref=e92]:
+              - generic [ref=e93]: ✓
+              - generic [ref=e94]: Creating game brief
+            - listitem [ref=e95]:
+              - generic [ref=e96]: ✓
+              - generic [ref=e97]: Building GameDefinition
+            - listitem [ref=e98]:
+              - generic [ref=e99]: ✓
+              - generic [ref=e100]: Running preview
+            - listitem [ref=e101]:
+              - generic [ref=e102]: ✓
+              - generic [ref=e103]: Ready
+          - generic [ref=e220]: "asset-load: Failed to load image asset \"kenney-new-platformer-pack-1-1-sprites-characters-default-character-beige-hit-png\" from /assets/library/kenney-new-platformer-pack-1-1/sprites/characters/default/character-beige-hit.png."
+      - generic [ref=e221]:
+        - generic [ref=e223]:
+          - heading "Fox of the Glowing Grove" [level=2] [ref=e224]
+          - generic [ref=e225]: Side-scrolling precision platformer / 2D · openai/gpt-5.1-20251113 · 30.1s
+        - generic [ref=e227]:
+          - iframe [active] [ref=e228]:
+            
+          - generic [ref=e229]:
+            - generic [ref=e231]: "Running: Fox of the Glowing Grove"
+            - generic [ref=e267]: · 12 assets · 3 scenes
+        - generic [ref=e241]:
+          - generic [ref=e242]:
+            - generic [ref=e243]: Debug diagnostics
+            - generic [ref=e244]: 3 warnings
+          - generic [ref=e245]:
+            - generic [ref=e246]: SCENE_HAS_CAMERA_NO_TARGET
+            - generic [ref=e247]: Scene "level1" enables the camera system but no entity has a cameraTarget. The camera will not follow anything.
+            - generic [ref=e248]: /scenes/1/systems
+            - generic [ref=e249]: "Fix: Add cameraTarget: {} to the entity the camera should follow (typically the player). Zod defaults will fill lerp/offset."
+          - generic [ref=e250]:
+            - generic [ref=e251]: UNUSED_ASSET
+            - generic [ref=e252]: Asset "kenney-platformer-kit-previews-door-large-open-png" is declared but never referenced by any entity, audio rule, or playSound action.
+            - generic [ref=e253]: /assets/8
+            - generic [ref=e254]: "Fix: Either reference \"kenney-platformer-kit-previews-door-large-open-png\" from an entity (model/sprite) or audio rule, or remove it to keep the bundle lean."
+          - generic [ref=e255]:
+            - generic [ref=e256]: UNUSED_ASSET
+            - generic [ref=e257]: Asset "kenney-new-platformer-pack-1-1-sounds-sfx-jump-high-ogg" is declared but never referenced by any entity, audio rule, or playSound action.
+            - generic [ref=e258]: /assets/11
+            - generic [ref=e259]: "Fix: Either reference \"kenney-new-platformer-pack-1-1-sounds-sfx-jump-high-ogg\" from an entity (model/sprite) or audio rule, or remove it to keep the bundle lean."
+        - generic [ref=e260]:
+          - button "Show GameDefinition JSON" [ref=e261] [cursor=pointer]
+          - generic [ref=e262]: 12 assets resolved
+          - generic [ref=e263]:
+            - generic [ref=e264]: "· type: platformer"
+            - generic [ref=e265]: "· pack: kenney-new-platformer-pack-1-1"
+            - generic [ref=e266]: · 1 substitution

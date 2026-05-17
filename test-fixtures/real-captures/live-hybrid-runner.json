@@ -1,0 +1,917 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "title": "Skyline Forest Run",
+    "description": "Hybrid endless-style runner prototype in a stylized forest-stone causeway. The player auto-moves forward on a three-lane track, can switch lanes and jump via mobile-friendly tap zones, collects coins, and avoids spike traps. A 2D HUD overlay shows score and health. Due to engine limits, difficulty scaling, swipe gestures, animations, and meta-progression are simplified or omitted; lane changes and jump are discrete actions mapped to clicks/taps, and there is a fixed-length track that leads to a win scene instead of an infinite endless run.",
+    "genre": "unknown"
+  },
+  "engine": {
+    "enable3D": true,
+    "enable2D": true,
+    "enablePhysics": true,
+    "gravity": {
+      "x": 0,
+      "y": -9.81,
+      "z": 0
+    }
+  },
+  "state": {},
+  "inputBindings": {},
+  "assets": [
+    {
+      "key": "kenney-platformer-kit-models-glb-format-character-ooli-glb",
+      "type": "gltf",
+      "url": "/assets/library/kenney-platformer-kit/models/glb-format/character-ooli.glb"
+    },
+    {
+      "key": "kenney-platformer-kit-models-glb-format-block-moving-blue-glb",
+      "type": "gltf",
+      "url": "/assets/library/kenney-platformer-kit/models/glb-format/block-moving-blue.glb"
+    },
+    {
+      "key": "kenney-platformer-kit-models-glb-format-block-moving-glb",
+      "type": "gltf",
+      "url": "/assets/library/kenney-platformer-kit/models/glb-format/block-moving.glb"
+    },
+    {
+      "key": "kenney-platformer-kit-models-glb-format-block-grass-corner-low-glb",
+      "type": "gltf",
+      "url": "/assets/library/kenney-platformer-kit/models/glb-format/block-grass-corner-low.glb"
+    },
+    {
+      "key": "kenney-platformer-kit-models-glb-format-coin-bronze-glb",
+      "type": "gltf",
+      "url": "/assets/library/kenney-platformer-kit/models/glb-format/coin-bronze.glb"
+    },
+    {
+      "key": "kenney-platformer-kit-models-glb-format-trap-spikes-glb",
+      "type": "gltf",
+      "url": "/assets/library/kenney-platformer-kit/models/glb-format/trap-spikes.glb"
+    },
+    {
+      "key": "mobile-controls-1-sprites-highlights-a-default-button-bean-highlight-png",
+      "type": "image",
+      "url": "/assets/library/mobile-controls-1/sprites/highlights-a/default/button-bean-highlight.png"
+    },
+    {
+      "key": "kenney-desert-shooter-pack-1-0-sounds-jump-a-ogg",
+      "type": "audio",
+      "url": "/assets/library/kenney-desert-shooter-pack-1-0/sounds/jump-a.ogg"
+    }
+  ],
+  "prefabs": {
+    "runnerPlayer": {
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "model": {
+        "assetKey": "kenney-platformer-kit-models-glb-format-character-ooli-glb",
+        "positionOffset": {
+          "x": 0,
+          "y": -0.5,
+          "z": 0
+        },
+        "rotationOffset": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "castShadow": false,
+        "receiveShadow": false
+      },
+      "rigidBody": {
+        "type": "dynamic",
+        "collider": {
+          "shape": "capsule",
+          "halfHeight": 0.5,
+          "radius": 0.4
+        },
+        "ccd": false,
+        "colliderOptions": {}
+      },
+      "cameraTarget": {
+        "lerp": 0.1,
+        "offset": {
+          "x": 0,
+          "y": 3,
+          "z": -8
+        }
+      },
+      "tags": [
+        "player",
+        "runner"
+      ],
+      "data": {}
+    },
+    "coinPickup": {
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 0.6,
+          "y": 0.6,
+          "z": 0.6
+        }
+      },
+      "model": {
+        "assetKey": "kenney-platformer-kit-models-glb-format-coin-bronze-glb",
+        "positionOffset": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "rotationOffset": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "castShadow": false,
+        "receiveShadow": false
+      },
+      "rigidBody": {
+        "type": "static",
+        "collider": {
+          "shape": "ball",
+          "radius": 0.4
+        },
+        "ccd": false,
+        "colliderOptions": {
+          "sensor": true
+        }
+      },
+      "tags": [
+        "coin"
+      ],
+      "data": {}
+    },
+    "spikeHazard": {
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 0.3,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "model": {
+        "assetKey": "kenney-platformer-kit-models-glb-format-trap-spikes-glb",
+        "positionOffset": {
+          "x": 0,
+          "y": -0.2,
+          "z": 0
+        },
+        "rotationOffset": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        },
+        "castShadow": false,
+        "receiveShadow": false
+      },
+      "rigidBody": {
+        "type": "static",
+        "collider": {
+          "shape": "cuboid",
+          "halfExtents": {
+            "x": 0.8,
+            "y": 0.3,
+            "z": 0.8
+          }
+        },
+        "ccd": false,
+        "colliderOptions": {
+          "sensor": true
+        }
+      },
+      "tags": [
+        "hazard"
+      ],
+      "data": {}
+    }
+  },
+  "behaviors": [],
+  "animations": [],
+  "ui": [],
+  "audio": [],
+  "scenes": [
+    {
+      "key": "runnerScene",
+      "systems": [
+        "physicsSync",
+        "camera",
+        "behavior",
+        "tween",
+        "spawner",
+        "ui",
+        "audio"
+      ],
+      "lights": [],
+      "entities": [
+        {
+          "key": "groundTrack",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 30
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 8,
+              "y": 0.5,
+              "z": 70
+            }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "color": "#556B2F",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "static",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": {
+                "x": 4,
+                "y": 0.25,
+                "z": 35
+              }
+            },
+            "ccd": false,
+            "colliderOptions": {}
+          },
+          "tags": [
+            "ground"
+          ],
+          "data": {}
+        },
+        {
+          "key": "leftWall",
+          "transform": {
+            "position": {
+              "x": -4.5,
+              "y": 1.5,
+              "z": 30
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 3,
+              "z": 70
+            }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "color": "#708090",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "static",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": {
+                "x": 0.25,
+                "y": 1.5,
+                "z": 35
+              }
+            },
+            "ccd": false,
+            "colliderOptions": {}
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "rightWall",
+          "transform": {
+            "position": {
+              "x": 4.5,
+              "y": 1.5,
+              "z": 30
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 3,
+              "z": 70
+            }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "color": "#708090",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "static",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": {
+                "x": 0.25,
+                "y": 1.5,
+                "z": 35
+              }
+            },
+            "ccd": false,
+            "colliderOptions": {}
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "forestBackdrop",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 6,
+              "z": -10
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 40,
+              "y": 20,
+              "z": 1
+            }
+          },
+          "mesh": {
+            "shape": "plane",
+            "size": {
+              "x": 1,
+              "y": 1
+            },
+            "color": "#2E4E2E",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "stoneArchGoal",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 2.5,
+              "z": 60
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 6,
+              "y": 5,
+              "z": 1
+            }
+          },
+          "mesh": {
+            "shape": "box",
+            "size": {
+              "x": 1,
+              "y": 1,
+              "z": 0.5
+            },
+            "color": "#778899",
+            "metalness": 0,
+            "roughness": 0.6
+          },
+          "rigidBody": {
+            "type": "static",
+            "collider": {
+              "shape": "cuboid",
+              "halfExtents": {
+                "x": 3,
+                "y": 2.5,
+                "z": 0.5
+              }
+            },
+            "ccd": false,
+            "colliderOptions": {
+              "sensor": true
+            }
+          },
+          "tags": [
+            "goal"
+          ],
+          "data": {}
+        },
+        {
+          "key": "runner",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "cameraRig",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": 5,
+              "z": -10
+            },
+            "rotation": {
+              "x": 0.05,
+              "y": 0,
+              "z": 0,
+              "w": 0.9987
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "cameraTarget": {
+            "lerp": 0.15,
+            "offset": {
+              "x": 0,
+              "y": 3,
+              "z": -8
+            }
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "tapZoneLeft",
+          "transform": {
+            "position": {
+              "x": -6,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "mobile-controls-1-sprites-highlights-a-default-button-bean-highlight-png",
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "depth": 0,
+            "origin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "followIn3D": false
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "tapZoneRight",
+          "transform": {
+            "position": {
+              "x": 6,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "mobile-controls-1-sprites-highlights-a-default-button-bean-highlight-png",
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "depth": 0,
+            "origin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "followIn3D": false
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "tapZoneJump",
+          "transform": {
+            "position": {
+              "x": 0,
+              "y": -3,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 0.8,
+              "y": 0.8,
+              "z": 1
+            }
+          },
+          "sprite": {
+            "kind": "image",
+            "assetKey": "mobile-controls-1-sprites-highlights-a-default-button-bean-highlight-png",
+            "x": 0,
+            "y": 0,
+            "alpha": 1,
+            "depth": 0,
+            "origin": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "followIn3D": false
+          },
+          "tags": [],
+          "data": {}
+        },
+        {
+          "key": "hudScore",
+          "transform": {
+            "position": {
+              "x": -7,
+              "y": 4,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "sprite": {
+            "kind": "text",
+            "text": "Score: 0",
+            "x": 0,
+            "y": 0,
+            "style": {
+              "fontFamily": "Verdana",
+              "fontSize": "24px",
+              "color": "#F5F5F5"
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "hudScore"
+          ],
+          "data": {}
+        },
+        {
+          "key": "hudHealth",
+          "transform": {
+            "position": {
+              "x": -7,
+              "y": 3.2,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 1
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          },
+          "sprite": {
+            "kind": "text",
+            "text": "Health: 3",
+            "x": 0,
+            "y": 0,
+            "style": {
+              "fontFamily": "Verdana",
+              "fontSize": "20px",
+              "color": "#FFFAF0"
+            },
+            "followIn3D": false
+          },
+          "tags": [
+            "hudHealth"
+          ],
+          "data": {}
+        }
+      ],
+      "behaviors": [],
+      "animations": [],
+      "spawners": [
+        {
+          "prefab": "coinPickup",
+          "positions": [],
+          "area": {
+            "min": {
+              "x": -2,
+              "y": 1,
+              "z": 10
+            },
+            "max": {
+              "x": 2,
+              "y": 1.5,
+              "z": 55
+            }
+          },
+          "tags": []
+        },
+        {
+          "prefab": "spikeHazard",
+          "positions": [],
+          "area": {
+            "min": {
+              "x": -2,
+              "y": 0.3,
+              "z": 15
+            },
+            "max": {
+              "x": 2,
+              "y": 0.3,
+              "z": 50
+            }
+          },
+          "tags": []
+        }
+      ],
+      "ui": [
+        {
+          "type": "text",
+          "text": "Skyline Forest Run",
+          "x": 16,
+          "y": 16,
+          "style": {
+            "fontFamily": "Verdana",
+            "fontSize": "28px",
+            "color": "#F0FFF0"
+          },
+          "depth": 1000
+        },
+        {
+          "type": "text",
+          "text": "Tap left/right to change lanes, bottom to jump.",
+          "x": 16,
+          "y": 16,
+          "style": {
+            "fontFamily": "Verdana",
+            "fontSize": "18px",
+            "color": "#E0EEE0"
+          },
+          "depth": 1000
+        },
+        {
+          "type": "text",
+          "text": "Score: 0",
+          "x": 16,
+          "y": 16,
+          "style": {
+            "fontFamily": "Verdana",
+            "fontSize": "20px",
+            "color": "#F5F5F5"
+          },
+          "depth": 1000
+        },
+        {
+          "type": "text",
+          "text": "Health: 3",
+          "x": 16,
+          "y": 16,
+          "style": {
+            "fontFamily": "Verdana",
+            "fontSize": "20px",
+            "color": "#FFFAF0"
+          },
+          "depth": 1000
+        }
+      ],
+      "audio": []
+    },
+    {
+      "key": "winScene",
+      "systems": [
+        "ui",
+        "behavior"
+      ],
+      "lights": [],
+      "entities": [],
+      "behaviors": [],
+      "animations": [],
+      "spawners": [],
+      "ui": [
+        {
+          "type": "text",
+          "text": "You Reached the Skyline!",
+          "x": 16,
+          "y": 16,
+          "style": {
+            "fontFamily": "Verdana",
+            "fontSize": "32px",
+            "color": "#F0FFF0"
+          },
+          "depth": 1000
+        },
+        {
+          "type": "text",
+          "text": "Forest stones blur beneath your feet. Tap to run again.",
+          "x": 16,
+          "y": 16,
+          "style": {
+            "fontFamily": "Verdana",
+            "fontSize": "20px",
+            "color": "#E0EEE0"
+          },
+          "depth": 1000
+        },
+        {
+          "type": "text",
+          "text": "Tap anywhere to restart.",
+          "x": 16,
+          "y": 16,
+          "style": {
+            "fontFamily": "Verdana",
+            "fontSize": "18px",
+            "color": "#F5F5F5"
+          },
+          "depth": 1000
+        }
+      ],
+      "audio": []
+    },
+    {
+      "key": "loseScene",
+      "systems": [
+        "ui",
+        "behavior"
+      ],
+      "lights": [],
+      "entities": [],
+      "behaviors": [],
+      "animations": [],
+      "spawners": [],
+      "ui": [
+        {
+          "type": "text",
+          "text": "You Fell Behind",
+          "x": 16,
+          "y": 16,
+          "style": {
+            "fontFamily": "Verdana",
+            "fontSize": "32px",
+            "color": "#FFF5F5"
+          },
+          "depth": 1000
+        },
+        {
+          "type": "text",
+          "text": "Stone spikes end this sprint. Tap to try a cleaner run.",
+          "x": 16,
+          "y": 16,
+          "style": {
+            "fontFamily": "Verdana",
+            "fontSize": "20px",
+            "color": "#FFE4E1"
+          },
+          "depth": 1000
+        },
+        {
+          "type": "text",
+          "text": "Tap anywhere to restart.",
+          "x": 16,
+          "y": 16,
+          "style": {
+            "fontFamily": "Verdana",
+            "fontSize": "18px",
+            "color": "#F5F5F5"
+          },
+          "depth": 1000
+        }
+      ],
+      "audio": []
+    }
+  ],
+  "initialScene": "runnerScene"
+}

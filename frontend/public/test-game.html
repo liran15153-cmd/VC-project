@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Crystal Circuit: Monochrome Waves — LOOMIER Preview</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #0b0f16; overflow: hidden; display: flex; flex-direction: column; }
+    #header { padding: 10px 16px; background: #111827; color: #e2e8f0; font-family: system-ui; font-size: 13px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e2a3a; }
+    #header strong { color: #818cf8; }
+    #status { font-size: 12px; color: #94a3b8; }
+    #game-frame { flex: 1; border: none; width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <strong>Crystal Circuit: Monochrome Waves</strong>
+    <span id="status">Loading game engine...</span>
+  </div>
+  <iframe id="game-frame" src="/engine-preview/preview.html" sandbox="allow-scripts allow-same-origin allow-pointer-lock"></iframe>
+  <script>
+    const GAME_DEF = {"schemaVersion": 1, "metadata": {"title": "Crystal Circuit: Monochrome Waves", "description": "A 2D-feel hybrid platformer where a small robot runs along a crystal circuit collecting glowing shards while enemy drones spawn in waves. Monochrome world (black, white, gray) with a single teal accent for crystals and UI. Limitations: true 2D camera and pixel art are approximated using a side-on 3D scene with primitive meshes and basic sprites.", "genre": "unknown"}, "engine": {"enable3D": true, "enable2D": true, "enablePhysics": true, "gravity": {"x": 0, "y": -9.81, "z": 0}}, "state": {}, "inputBindings": {}, "assets": [{"key": "ui_font_image", "type": "image", "url": "data:,uifont"}, {"key": "sfx_collect", "type": "audio", "url": "data:,collect"}, {"key": "sfx_hit", "type": "audio", "url": "data:,hit"}], "prefabs": {"enemyDrone": {"transform": {"position": {"x": 0, "y": 1.5, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 0.6, "y": 0.6, "z": 0.6}}, "mesh": {"shape": "box", "size": {"x": 0.8, "y": 0.5, "z": 0.5}, "color": 16777215, "metalness": 0, "roughness": 0.6}, "rigidBody": {"type": "dynamic", "collider": {"shape": "cuboid", "halfExtents": {"x": 0.4, "y": 0.25, "z": 0.25}}, "linearDamping": 0.5, "angularDamping": 0.8, "ccd": false, "colliderOptions": {}}, "tags": ["enemy"], "data": {}}, "crystalShard": {"transform": {"position": {"x": 0, "y": 1.5, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 0.4, "y": 0.4, "z": 0.4}}, "mesh": {"shape": "cone", "radius": 0.5, "height": 1, "radialSegments": 32, "color": 16777215, "metalness": 0, "roughness": 0.6}, "rigidBody": {"type": "static", "collider": {"shape": "ball", "radius": 0.35}, "ccd": false, "colliderOptions": {"sensor": true}}, "tags": ["crystal"], "data": {}}}, "behaviors": [], "animations": [], "ui": [], "audio": [], "scenes": [{"key": "main", "systems": ["physicsSync", "camera", "behavior", "tween", "spawner", "ui", "audio"], "lights": [], "entities": [{"key": "cameraRig", "transform": {"position": {"x": 0, "y": 3, "z": 10}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 1, "y": 1, "z": 1}}, "tags": [], "data": {}}, {"key": "ground_main", "transform": {"position": {"x": 0, "y": 0, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 20, "y": 1, "z": 4}}, "mesh": {"shape": "box", "size": {"x": 20, "y": 1, "z": 4}, "color": 16777215, "metalness": 0, "roughness": 0.6}, "rigidBody": {"type": "static", "collider": {"shape": "cuboid", "halfExtents": {"x": 10, "y": 0.5, "z": 2}}, "ccd": false, "colliderOptions": {}}, "tags": ["ground"], "data": {}}, {"key": "platform_left", "transform": {"position": {"x": -4, "y": 1.5, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 3, "y": 0.5, "z": 3}}, "mesh": {"shape": "box", "size": {"x": 3, "y": 0.5, "z": 3}, "color": 16777215, "metalness": 0, "roughness": 0.6}, "rigidBody": {"type": "static", "collider": {"shape": "cuboid", "halfExtents": {"x": 1.5, "y": 0.25, "z": 1.5}}, "ccd": false, "colliderOptions": {}}, "tags": ["ground"], "data": {}}, {"key": "platform_mid", "transform": {"position": {"x": 0, "y": 2.5, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 3, "y": 0.5, "z": 3}}, "mesh": {"shape": "box", "size": {"x": 3, "y": 0.5, "z": 3}, "color": 16777215, "metalness": 0, "roughness": 0.6}, "rigidBody": {"type": "static", "collider": {"shape": "cuboid", "halfExtents": {"x": 1.5, "y": 0.25, "z": 1.5}}, "ccd": false, "colliderOptions": {}}, "tags": ["ground"], "data": {}}, {"key": "platform_right_high", "transform": {"position": {"x": 4, "y": 3.5, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 3, "y": 0.5, "z": 3}}, "mesh": {"shape": "box", "size": {"x": 3, "y": 0.5, "z": 3}, "color": 16777215, "metalness": 0, "roughness": 0.6}, "rigidBody": {"type": "static", "collider": {"shape": "cuboid", "halfExtents": {"x": 1.5, "y": 0.25, "z": 1.5}}, "ccd": false, "colliderOptions": {}}, "tags": ["ground"], "data": {}}, {"key": "player", "transform": {"position": {"x": -8, "y": 1.1, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 0.8, "y": 1.2, "z": 0.8}}, "mesh": {"shape": "box", "size": {"x": 0.8, "y": 1.2, "z": 0.8}, "color": 16777215, "metalness": 0, "roughness": 0.6}, "rigidBody": {"type": "dynamic", "collider": {"shape": "capsule", "halfHeight": 0.5, "radius": 0.35}, "linearDamping": 0.3, "angularDamping": 1, "ccd": false, "colliderOptions": {}}, "cameraTarget": {"lerp": 0.1, "offset": {"x": 0, "y": 2, "z": 10}}, "tags": ["player"], "data": {}}, {"key": "spawner_enemy_waves", "transform": {"position": {"x": 10, "y": 2.5, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 1, "y": 1, "z": 1}}, "tags": ["enemySpawner"], "data": {}}, {"key": "spawner_crystals_circuit", "transform": {"position": {"x": -5, "y": 2.8, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 1, "y": 1, "z": 1}}, "tags": ["crystalSpawner"], "data": {}}, {"key": "ui_score", "transform": {"position": {"x": 0, "y": 0, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 1, "y": 1, "z": 1}}, "sprite": {"kind": "text", "text": "Crystals: 0", "x": 0, "y": 0, "style": {"fontFamily": "Verdana", "fontSize": "24px", "color": "#ffffff"}, "followIn3D": false}, "tags": ["ui"], "data": {}}, {"key": "ui_lives", "transform": {"position": {"x": 0, "y": 0, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 1, "y": 1, "z": 1}}, "sprite": {"kind": "text", "text": "Lives: 3", "x": 0, "y": 0, "style": {"fontFamily": "Verdana", "fontSize": "24px", "color": "#ffffff"}, "followIn3D": false}, "tags": ["ui"], "data": {}}, {"key": "ui_title", "transform": {"position": {"x": 0, "y": 0, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}, "scale": {"x": 1, "y": 1, "z": 1}}, "sprite": {"kind": "text", "text": "Crystal Circuit", "x": 0, "y": 0, "style": {"fontFamily": "Verdana", "fontSize": "24px", "color": "#ffffff"}, "followIn3D": false}, "tags": ["ui"], "data": {}}], "behaviors": [{"trigger": "sceneStart", "conditions": [], "actions": [{"type": "spawnAt", "spawner": "spawner_crystals_circuit", "count": 1, "offset": {"x": -4, "y": 1, "z": 0}}, {"type": "spawnAt", "spawner": "spawner_crystals_circuit", "count": 1, "offset": {"x": 0, "y": 2.8, "z": 0}}, {"type": "spawnAt", "spawner": "spawner_crystals_circuit", "count": 1, "offset": {"x": 4, "y": 3.8, "z": 0}}, {"type": "spawnAt", "spawner": "spawner_crystals_circuit", "count": 1, "offset": {"x": 2, "y": 1.2, "z": 0}}], "key": "initialize_crystals", "type": "scripted"}, {"trigger": {"type": "collision", "entityTag": "player", "withTag": "crystal"}, "conditions": [], "actions": [{"type": "modifyState", "target": "entity", "value": 1, "entity": "player", "behaviorKey": "player_stats", "path": "crystals", "operation": "add"}, {"type": "updateText", "target": "entity", "entity": "ui_score", "format": "Crystals: {value}", "source": {"entity": "player", "behaviorKey": "player_stats", "path": "crystals"}}, {"type": "destroyEntity", "target": "collisionOther"}, {"type": "playSound", "volume": 0.6, "assetKey": "sfx_collect"}], "key": "player_collect_crystal", "type": "scripted"}, {"trigger": {"type": "collision", "entityTag": "player", "withTag": "enemy"}, "conditions": [], "actions": [{"type": "modifyState", "target": "entity", "value": -1, "entity": "player", "behaviorKey": "player_stats", "path": "lives", "operation": "add"}, {"type": "updateText", "target": "entity", "entity": "ui_lives", "format": "Lives: {value}", "source": {"entity": "player", "behaviorKey": "player_stats", "path": "lives"}}, {"type": "destroyEntity", "target": "collisionOther"}, {"type": "playSound", "volume": 0.7, "assetKey": "sfx_hit"}], "key": "enemy_hits_player", "type": "scripted"}, {"trigger": "update", "conditions": [], "actions": [{"type": "forEachEntity", "tag": "enemy", "actions": [{"type": "seekTarget", "targetEntity": "player", "axis": "x", "speed": 3, "maxSpeed": 5}]}], "key": "enemy_ai_follow", "type": "scripted"}], "animations": [], "spawners": [], "ui": [], "audio": []}], "initialScene": "main"};
+    const iframe = document.getElementById("game-frame");
+    const status = document.getElementById("status");
+    let requestId = 0;
+
+    window.addEventListener("message", function(event) {
+      if (!event.data || event.data.v !== 1) return;
+      const msg = event.data;
+      if (msg.type === "preview:hello") {
+        status.textContent = "Sending game definition...";
+        iframe.contentWindow.postMessage({
+          v: 1,
+          type: "preview:load",
+          requestId: "req-" + (++requestId),
+          gameDefinition: GAME_DEF
+        }, window.location.origin);
+      }
+      if (msg.type === "preview:loading") {
+        status.textContent = "Loading: " + (msg.phase || "...");
+      }
+      if (msg.type === "preview:loaded") {
+        status.textContent = "Running! " + (msg.summary?.title || "");
+        document.getElementById("header").style.background = "#0f2a1a";
+      }
+      if (msg.type === "preview:error") {
+        status.textContent = "Error: " + (msg.error?.message || "unknown");
+        document.getElementById("header").style.background = "#2a0f0f";
+      }
+    });
+  </script>
+</body>
+</html>

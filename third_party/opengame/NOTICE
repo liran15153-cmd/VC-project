@@ -1,0 +1,56 @@
+LOOMIER / Gaming Vibe Coding incorporates ideas and patterns adapted from the
+OpenGame project, used under the terms of the Apache License, Version 2.0.
+
+----------------------------------------------------------------------------
+OpenGame
+----------------------------------------------------------------------------
+
+  Copyright 2025 Google LLC
+  Copyright 2025 Qwen (Alibaba Group)
+  Copyright 2026 OpenGame contributors
+
+  Upstream repository: https://github.com/leigest519/OpenGame
+  Local snapshot path: C:\Users\lior\Desktop\OpenGame-main\OpenGame-main
+  Upstream commit SHA: <pin-when-extracting>
+  Upstream version:    0.6.0
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use these adapted ideas except in compliance with the License.
+  A copy of the License is provided in this directory as ./LICENSE.
+
+----------------------------------------------------------------------------
+Adapted areas inside LOOMIER
+----------------------------------------------------------------------------
+
+The following LOOMIER files were inspired by — or derive concepts from — the
+referenced OpenGame source files. None of the OpenGame source files were
+copied verbatim; instead, the *ideas* (data shapes, check categories,
+diagnostic taxonomy) were re-implemented from scratch in CommonJS JavaScript
+to fit LOOMIER's declarative GameDefinition runtime.
+
+  prototype/backend/src/debugProtocol/types.js
+    inspired by  agent-test/debug-skill/src/types.ts
+    adaptations  Mapped FailureStage and FixType to LOOMIER's JSON-only
+                 declarative model. Removed Phaser/TypeScript-specific shapes.
+
+  prototype/backend/src/debugProtocol/validator.js
+    inspired by  agent-test/debug-skill/src/validator.ts
+    adaptations  Replaced filesystem + regex-on-source walkers with pure
+                 in-memory checks against the validated GameDefinition object.
+                 Replaced TS/Phaser checks (asset-pack.json, animations.json,
+                 scene registration in main.ts) with LOOMIER analogues that
+                 operate on the runtime schema's entities/scenes/behaviors.
+
+  prototype/backend/src/debugProtocol/diagnostics.js
+    inspired by  agent-test/debug-skill/src/debug-loop.ts (entry shape only)
+    adaptations  Stripped the LLM-driven repair loop. Stage 1 only collects
+                 and reports diagnostics deterministically.
+
+  prototype/backend/src/debugProtocol/seed-protocol.json
+    inspired by  agent-test/debug-skill/seed-protocol/protocol.json (format)
+    adaptations  All entries are LOOMIER-native, keyed to LOOMIER diagnostic
+                 codes. None of OpenGame's TS-specific entries were copied.
+
+The original OpenGame Phaser code generator, debug runner (Algorithm 1 REPEAT
+loop), repairer, recorder, and generalizer modules are NOT used. LOOMIER
+follows a no-arbitrary-JS-execution model: only declarative JSON.
